@@ -1,0 +1,8 @@
+Package: amd-work-bench
+Version: ${PROJECT_VERSION}
+Priority: optional
+Section: devel
+Maintainer: amd_work_bench@amd.com
+Depends: 
+Homepage: https://github.amd.com/LSTT/amd-work-bench 
+Description: Plugin framework and builtin plugins to measure PCIe bandwidth on ROCm platforms

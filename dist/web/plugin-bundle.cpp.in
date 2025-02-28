@@ -1,0 +1,14 @@
+#include <work_bench/include/awb/logger.hpp>
+
+extern "C" void force_plugin_link_@AMD_WORK_BENCH_PLUGIN_NAME@();
+
+namespace {
+struct StaticLoad_t {
+    StaticLoad_t() {
+        force_plugin_link_@AMD_WORK_BENCH_PLUGIN_NAME@();
+    }
+};
+}
+
+static StaticLoad_t static_load;
+

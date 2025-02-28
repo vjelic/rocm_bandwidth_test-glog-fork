@@ -1,0 +1,90 @@
+# MIT License
+#
+# Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+#
+
+#
+cmake_minimum_required(VERSION 3.20)
+
+set(AMD_TARGET_NAME "main_dynlib_mgmt")
+set(AMD_TARGET_LIBNAME "libdynlibmgmt")
+project(${AMD_TARGET_LIBNAME}
+    VERSION "0.0.1"
+    LANGUAGES CXX C
+    DESCRIPTION "Dynamic (Shared) Library Management"
+    HOMEPAGE_URL "https://github.com/ROCm/"
+)
+
+# Flag to enable / disable verbose output.
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+# Export compile commands for linters and autocompleters
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ Standard in use")
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# CMake specific directories
+set(AMD_APP_BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+set(TARGET_SOURCES src/dynlib_mgmt.cpp) 
+set(TARGET_HEADERS include) 
+set(APPLICATION_SOURCES src/main_dynlib_mgmt.cpp) 
+
+if(DYNAMIC_LIBRARY_MGMT_STATIC_BUILD)
+    add_library(${AMD_TARGET_LIBNAME} STATIC ${TARGET_SOURCES})
+else()
+    add_library(${AMD_TARGET_LIBNAME} SHARED ${TARGET_SOURCES})
+endif()
+
+set(AMD_WORK_BENCH_LIBRARY_TYPE PUBLIC)
+target_compile_definitions(${AMD_TARGET_LIBNAME} PRIVATE AMD_PROJECT_NAME="${AMD_TARGET_LIBNAME}")
+
+## Testing mold linker
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=mold")
+endif()
+
+## Build Library
+set(BUILD_INCLUDE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/${TARGET_HEADERS})
+target_include_directories(${AMD_TARGET_LIBNAME} SYSTEM BEFORE PUBLIC ${BUILD_INCLUDE_LIST})
+target_include_directories(${AMD_TARGET_LIBNAME} ${AMD_WORK_BENCH_LIBRARY_TYPE} include ${EXTERNAL_LIB_INCLUDES}) 
+target_link_directories(${AMD_TARGET_LIBNAME} ${AMD_WORK_BENCH_LIBRARY_TYPE})
+target_link_libraries(${AMD_TARGET_LIBNAME} ${AMD_WORK_BENCH_LIBRARY_TYPE})
+set_property(TARGET ${AMD_TARGET_LIBNAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+
+set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES PREFIX "")
+
+
+## Build Plugin Library
+set(AMD_TARGET_PLUGIN_TEMPLATE "plugin_template")
+set(PLUGIN_TEMPLATE_SOURCES src/plugin_template.cpp)
+set(AMD_TARGET_PLUGIN_TEMPLATE_INCLUDE_LIST include)
+add_library(${AMD_TARGET_PLUGIN_TEMPLATE} SHARED ${PLUGIN_TEMPLATE_SOURCES})
+target_include_directories(${AMD_TARGET_PLUGIN_TEMPLATE}  SYSTEM BEFORE PUBLIC ${AMD_TARGET_PLUGIN_TEMPLATE_INCLUDE_LIST})
+
+# Build the application that uses the library
+add_executable(${AMD_TARGET_NAME} ${APPLICATION_SOURCES})
+target_include_directories(${AMD_TARGET_NAME} PUBLIC ${AMD_TARGET_PLUGIN_TEMPLATE_INCLUDE_LIST} ) 
+target_link_libraries(${AMD_TARGET_NAME} ${AMD_TARGET_LIBNAME} ${AMD_TARGET_PLUGIN_TEMPLATE})
