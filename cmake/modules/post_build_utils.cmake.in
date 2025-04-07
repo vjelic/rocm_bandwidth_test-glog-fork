@@ -1,0 +1,449 @@
+# MIT License
+#
+# Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+#
+
+# Default GNU install directories
+#include(GNUInstallDirs)
+
+#
+set(AMD_PROJECT_BASE_DIRECTORY "@AMD_PROJECT_BASE_DIRECTORY@")
+set(AMD_PROJECT_BUILD_DIRECTORY "@AMD_PROJECT_BUILD_DIRECTORY@")
+
+message(STATUS ">> Running: '${CMAKE_CURRENT_LIST_FILE}' ...")
+message(STATUS "  >> PROJECT_BASE_DIRECTORY:  '${AMD_PROJECT_BASE_DIRECTORY}' ...")
+message(STATUS "  >> PROJECT_BUILD_DIRECTORY: '${AMD_PROJECT_BUILD_DIRECTORY}' ...")
+include("${AMD_PROJECT_BUILD_DIRECTORY}/post_build_utils_env.cmake")
+
+## TODO: Implement a list of registered components
+set(AMD_INSTALLED_COMPONENTS "")  
+function(register_component component_name)
+    list(APPEND AMD_INSTALLED_COMPONENTS ${component_name})                     # Append to the list
+    list(REMOVE_DUPLICATES AMD_INSTALLED_COMPONENTS)                            # Ensure uniqueness
+    set(AMD_INSTALLED_COMPONENTS "${AMD_INSTALLED_COMPONENTS}" PARENT_SCOPE)    # Make it available globally
+endfunction()
+
+
+###############################################################################
+## TARGET       :   Install executables & libraries
+## FILE         :   Install individual files (docs, scripts)
+## DIRECTORY    :   Install entire directories (resources, configs)
+## SCRIPT       :   Execute install-time scripts (post-install actions)
+## CONFIG       :   Install CMake package configuration files
+## EXPORT       :   Export CMake targets for external usage
+## SYMLINK      :   Create symbolic links for installed files
+##
+##
+##  Proper installation strategy for the system, aligning with modern Linux filesystem standards 
+##  using install(TARGETS) and related commands.
+##
+##  Understanding Linux Filesystem Hierarchy (FHS)
+##  https://refspecs.linuxfoundation.org/FHS_3.0/fhs/index.html
+##
+##  For proper installation, we'll follow the Filesystem Hierarchy Standard (FHS):
+##
+##    /usr/local: Local hierarchy (for user-installed software).
+##    /usr/local/bin: User executables.
+##    /usr/local/lib (or /usr/local/lib64): User libraries.
+##    /usr/local/include: Header files for user libraries.
+##    /usr/local/share: Data files, documentation, etc.
+##
+##    /usr: System hierarchy (for system-installed software).
+##    /usr/bin: Executables intended for general use.
+##    /usr/lib (or /usr/lib64): Shared libraries.
+##    /usr/lib/<your_package_name>/plugins: Plugins (shared libraries with a custom extension).
+##    /usr/include/<your_package_name>: Header files for your library.
+##    /usr/share/<your_package_name>: Data files, documentation, etc.
+##
+##    /etc: Configuration files.
+##    /var: Variable data (log files, caches, etc).
+##
+##    /opt: Optional hierarchy (for software installed in a self-contained directory).
+##    /opt/<your_package_name>: Your package directory.
+##
+##    /bin: Essential user command binaries.
+##    /lib (or /lib64): Essential shared libraries and kernel modules.
+##    /sbin: Essential system binaries.
+##
+##    /tmp: Temporary files.
+## 
+##  Based on these, we can take the following approach: 
+##      - For standalone builds, we will use: /usr/local/ 
+##      - For ROCm based builds, we will use: /opt/<your_package_name>/
+###############################################################################
+set(INSTALL_TYPE_LIST "")
+list(APPEND INSTALL_TYPE_LIST 
+    "ROCM_BUILD_PACKAGE"
+    "STANDALONE_BUILD_PACKAGE"
+    "ENGINEERING_BUILD_PACKAGE"
+)
+
+macro(setup_binary_permissions)
+    set(TARGET_FS_LIBRARY_PERMISSIONS
+        OWNER_READ OWNER_WRITE OWNER_EXECUTE
+        GROUP_READ GROUP_EXECUTE
+        WORLD_READ WORLD_EXECUTE)
+        
+    set(TARGET_FS_EXECUTABLE_PERMISSIONS
+        OWNER_READ OWNER_WRITE OWNER_EXECUTE
+        GROUP_READ GROUP_WRITE GROUP_EXECUTE
+        WORLD_READ WORLD_EXECUTE)        
+endmacro()
+
+
+###### File locations during build 
+#./deps/external/dynamic_lib_mgmt/lib/libamd_dynlib_mgmt.so.2025.03.24.WIP
+#./deps/external/dynamic_lib_mgmt/lib/libamd_dynlib_mgmt.so
+#./deps/work_bench/lib/libamd_work_bench.so.2025.03.24.WIP
+#./deps/work_bench/lib/libamd_work_bench.so
+#./plugins/tb/lib/libamd_tb.so.2025.03.24.WIP
+#./plugins/tb/lib/libamd_tb.so
+#./plugins/common/tb_engine/deps/lib/libamd_tb_engine.so.2025.03.24.WIP
+#./plugins/common/tb_engine/deps/lib/libamd_tb_engine.so
+
+#./rocm_bandwidth_test
+
+#./build/plugins/builtin.amdplug
+#./build/plugins/amd-hello/amd_hello.amdplug
+#./build/plugins/tb/transferbench.amdplug
+#./build/plugins/rbt.amdplug
+######
+
+##
+##  Note:   As this script was designed to be called with 'install(SCRIPT ...)', it doesn't support
+##          the 'install()' command directly. That's because this script is executed during the 'install
+##          phase', however the 'install(... FILES/TARGETS ...)' is not scriptable and can't be used here.
+##          This script is intended to be used for advanced installation scenarios, where the standard
+##          'install()' command is not sufficient. That's where 'install(SCRIPT ...)' comes in handy.
+##          it provides a mechanism for dynamic and custom installation actions that go beyond the static 
+##          definitions provided by install(TARGETS) and install(FILES).
+##
+##  Due to the complexity of the build, involving all built-in plugins, along with their dependencies, 
+##  the installation process is divided into two parts:
+##      1. The first part is handled by the 'install(SCRIPT ...)' command, which executes this script.
+##      2. The second part is managed by the 'install(FILES ...)' command, which is executed in the
+##         'install' phase. This command is responsible for installing the artifacts to an staging area.
+##      3. The artifacts are bridged (since we have a small gap here) to the CPack command, which is 
+##         responsible for creating the final package.
+##         The CPack command is executed in the 'package' phase, and it uses the artifacts from the staging area.
+##  - That happens only when 'install_flag' is set to "STANDALONE_BUILD_PACKAGE" or "ROCM_BUILD_PACKAGE".
+function(dynamic_install install_flag install_type target_install_base_path component_name permissions_set)
+    #
+    message(STATUS ">> Running dynamic_install() ...")
+
+    # Install executables and libraries
+    set(LIBAMD_DYNLIB_MGMT_PATH "${AMD_TARGET_PROJECT_BASE}/deps/external/dynamic_lib_mgmt/lib")
+    set(LIBAMD_WORK_BENCH_PATH "${AMD_TARGET_PROJECT_BASE}/deps/work_bench/lib")
+    set(LIBAMD_COMMON_TB_ENGINE_PATH "${AMD_TARGET_PROJECT_BASE}/plugins/common/tb_engine/deps/lib")
+    set(LIBAMD_PLUGIN_TB_PATH "${AMD_TARGET_PROJECT_BASE}/plugins/tb/lib")
+    set(BINAMD_WORK_BENCH_PATH "${AMD_PROJECT_BUILD_DIRECTORY}")
+    set(LIBAMD_PLUGINS_PATH "${AMD_PROJECT_BUILD_DIRECTORY}/plugins")
+    set(LIBAMD_DYNLIB_MGMT_PATTERN "libamd_dynlib_mgmt.so*")
+    set(LIBAMD_WORK_BENCH_PATTERN "libamd_work_bench.so*")
+    set(LIBAMD_COMMON_TB_ENGINE_PATTERN "libamd_tb_engine.so*")
+    set(LIBAMD_PLUGIN_TB_PATTERN "libamd_tb.so*")
+    set(BINAMD_WORK_BENCH_PATTERN "rocm_bandwidth_test*")
+    set(LIBAMD_PLUGINS_PATTERN "*.amdplug")
+
+    file(GLOB LIBAMD_DYNLIB_MGMT_FILES "${LIBAMD_DYNLIB_MGMT_PATH}/${LIBAMD_DYNLIB_MGMT_PATTERN}")
+    file(GLOB LIBAMD_WORK_BENCH_FILES "${LIBAMD_WORK_BENCH_PATH}/${LIBAMD_WORK_BENCH_PATTERN}")
+    file(GLOB LIBAMD_COMMON_TB_ENGINE_FILES "${LIBAMD_COMMON_TB_ENGINE_PATH}/${LIBAMD_COMMON_TB_ENGINE_PATTERN}")
+    file(GLOB LIBAMD_PLUGIN_TB_FILES "${LIBAMD_PLUGIN_TB_PATH}/${LIBAMD_PLUGIN_TB_PATTERN}")
+    file(GLOB BINAMD_WORK_BENCH_FILES "${BINAMD_WORK_BENCH_PATH}/${BINAMD_WORK_BENCH_PATTERN}")
+    file(GLOB_RECURSE LIBAMD_PLUGINS_FILES "${LIBAMD_PLUGINS_PATH}/${LIBAMD_PLUGINS_PATTERN}")
+    if(NOT "${install_flag}" STREQUAL "")
+        if (NOT DEFINED AMD_TARGET_INSTALL_STAGING OR AMD_TARGET_INSTALL_STAGING STREQUAL "")
+            message(FATAL_ERROR "Invalid 'AMD_TARGET_INSTALL_STAGING' install/package staging!")
+        endif()
+
+        list(FIND INSTALL_TYPE_LIST ${install_flag} install_flag_index)
+        if(${install_flag_index} LESS_EQUAL -1)
+            message(FATAL_ERROR "Invalid install flag type: '${install_flag}' for dynamic_install()!")
+        endif()
+
+        get_filename_component(USER_HOME_DIRECTORY "$ENV{HOME}" ABSOLUTE)
+        if (NOT USER_HOME_DIRECTORY) 
+            message(FATAL_ERROR "Unable to determine user home directory!")
+        endif()
+
+        message(STATUS "  >> dynamic_install(): ${install_flag} ...")
+        setup_binary_permissions()
+        # Only supported on CMake 3.3 and later
+        #if(NOT "${install_flag}" IN_LIST INSTALL_TYPE_LIST)
+        #    message(FATAL_ERROR "Invalid install flag type: '${install_flag}' for dynamic_install()!")
+        #endif()
+        if("${install_flag}" STREQUAL "ENGINEERING_BUILD_PACKAGE")
+            if (AMD_TARGET_INSTALL_DIRECTORY STREQUAL "")
+                set(AMD_TARGET_INSTALL_DIRECTORY "engineering_build")
+            endif()
+            if (NOT "${target_install_base_path}" STREQUAL "")
+                # Engineering build will be at './build/engineering_build' for now
+                set(AMD_ENGINEERING_TARGET_INSTALL_PATH "${AMD_PROJECT_BUILD_DIRECTORY}/${AMD_TARGET_INSTALL_DIRECTORY}")
+                file(MAKE_DIRECTORY ${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${AMD_TARGET_INSTALL_DIRECTORY})
+            else()
+                set(AMD_ENGINEERING_TARGET_INSTALL_PATH "${USER_HOME_DIRECTORY}/${AMD_TARGET_INSTALL_DIRECTORY}")
+            endif()
+            
+            message(STATUS "  >> INSTALL_BASE_PATH: ${AMD_ENGINEERING_TARGET_INSTALL_PATH} ...")
+            set(AMD_ENGINEERING_TARGET_INSTALL_LIBDIR "lib")
+            set(AMD_ENGINEERING_TARGET_INSTALL_PLUGINSDIR "plugins")
+            set(AMD_ENGINEERING_TARGET_INSTALL_INCLUDEDIR "include")
+            set(AMD_ENGINEERING_TARGET_INSTALL_BINDIR "bin")
+            set(AMD_ENGINEERING_TARGET_INSTALL_DOCDIR "share/docs")
+            set(AMD_ENGINEERING_TARGET_INSTALL_SCRIPTDIR "bin/scripts")
+            set(AMD_ENGINEERING_TARGET_INSTALL_CONFIGDIR "etc/${AMD_TARGET_NAME}")
+            set(AMD_ENGINEERING_TARGET_INSTALL_EXPORTDIR "lib/cmake/${AMD_TARGET_NAME}")
+            set(AMD_ENGINEERING_TARGET_INSTALL_SYMLINKDIR "bin")
+            file(MAKE_DIRECTORY ${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${AMD_ENGINEERING_TARGET_INSTALL_LIBDIR})
+            file(MAKE_DIRECTORY ${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${AMD_ENGINEERING_TARGET_INSTALL_PLUGINSDIR})
+
+            set(AMD_TARGET_INSTALL_PATH "${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${AMD_ENGINEERING_TARGET_INSTALL_LIBDIR}")
+            foreach(copy_file ${LIBAMD_DYNLIB_MGMT_FILES})
+                message(STATUS "  >> Copying '${copy_file}' to ${AMD_TARGET_INSTALL_PATH}")
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+          
+            foreach(copy_file ${LIBAMD_WORK_BENCH_FILES})
+                message(STATUS "  >> Copying '${copy_file}' to ${AMD_TARGET_INSTALL_PATH}")
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+
+            foreach(copy_file ${LIBAMD_COMMON_TB_ENGINE_FILES})
+                message(STATUS "  >> Copying '${copy_file}' to ${AMD_TARGET_INSTALL_PATH}")
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+
+            foreach(copy_file ${LIBAMD_PLUGIN_TB_FILES})
+                message(STATUS "  >> Copying '${copy_file}' to ${AMD_TARGET_INSTALL_PATH}")
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+            
+            set(AMD_TARGET_INSTALL_PATH "${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${AMD_ENGINEERING_TARGET_INSTALL_PLUGINSDIR}")
+            foreach(copy_file ${LIBAMD_PLUGINS_FILES})
+                message(STATUS "  >> Copying '${copy_file}' to ${AMD_TARGET_INSTALL_PATH}")
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+
+            set(AMD_TARGET_INSTALL_PATH "${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${AMD_ENGINEERING_TARGET_INSTALL_BINDIR}")
+            foreach(bin_copy_file ${BINAMD_WORK_BENCH_FILES})
+                message(STATUS "  >> Copying '${bin_copy_file}' to ${AMD_TARGET_INSTALL_PATH}")
+                file(COPY ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN)
+                get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
+                file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${bin_copy_file_name} SYMBOLIC)
+            endforeach()
+
+            # Also creates a bz2 file with the 'engineering_build' directory
+            string(TIMESTAMP BUILD_TIMESTAMP "%Y.%m.%d")
+            string(TIMESTAMP FILE_TIMESTAMP "%Y%m%d_%H%M%S")
+            set(AMD_ENGINEERING_TARGET_VERSION "1.0.${BUILD_TIMESTAMP}")
+            set(AMD_ENGINEERING_TARGET_BZ2_DIRECTORY "engineering_package")
+            set(AMD_ENGINEERING_TARGET_BZ2_FULL_PATH "${AMD_PROJECT_BUILD_DIRECTORY}/${AMD_ENGINEERING_TARGET_BZ2_DIRECTORY}")
+            set(AMD_ENGINEERING_TARGET_BZ2_FILE_NAME "${AMD_TARGET_NAME}-Engineering-${FILE_TIMESTAMP}.bz2")
+            set(AMD_ENGINEERING_TARGET_BZ2_ARCHIVE "${AMD_ENGINEERING_TARGET_BZ2_FULL_PATH}/${AMD_ENGINEERING_TARGET_BZ2_FILE_NAME}")
+
+            message(STATUS "  >> Creating bz2 archive: ${AMD_ENGINEERING_TARGET_BZ2_ARCHIVE} ...")
+            message(STATUS "  >> AMD_ENGINEERING_TARGET_INSTALL_PATH: ${AMD_PROJECT_BUILD_DIRECTORY} ...")
+            file(MAKE_DIRECTORY ${AMD_ENGINEERING_TARGET_BZ2_FULL_PATH})
+            execute_process(
+                # Note: This tar uses full paths
+                # COMMAND tar jcvf ${AMD_ENGINEERING_TARGET_BZ2_ARCHIVE} --bzip2 ${AMD_ENGINEERING_TARGET_INSTALL_PATH}
+                # Note: This tar relative (short) paths
+                COMMAND tar jcvf "./${AMD_ENGINEERING_TARGET_BZ2_DIRECTORY}/${AMD_ENGINEERING_TARGET_BZ2_FILE_NAME}" --bzip2 "./${AMD_TARGET_INSTALL_DIRECTORY}"
+                OUTPUT_VARIABLE BZ2_OUTPUT
+                WORKING_DIRECTORY ${AMD_PROJECT_BUILD_DIRECTORY}
+                RESULT_VARIABLE BZ2_RESULT
+            )
+            if(NOT BZ2_RESULT EQUAL 0)
+                message(FATAL_ERROR "Failed to create Engineering bz2 archive: ${AMD_ENGINEERING_TARGET_BZ2_ARCHIVE}")
+            endif()
+
+        elseif("${install_flag}" STREQUAL "STANDALONE_BUILD_PACKAGE")
+            set(AMD_STANDALONE_TARGET_INSTALL_PATH "${AMD_TARGET_INSTALL_STAGING}/usr/local")
+            set(AMD_STANDALONE_TARGET_INSTALL_LIBDIR "lib")
+            set(AMD_STANDALONE_TARGET_INSTALL_PLUGINSDIR "plugins")            
+            set(AMD_STANDALONE_TARGET_INSTALL_INCLUDEDIR "include")
+            set(AMD_STANDALONE_TARGET_INSTALL_BINDIR "bin")
+            set(AMD_STANDALONE_TARGET_INSTALL_DOCDIR "share/doc")
+            set(AMD_STANDALONE_TARGET_INSTALL_SCRIPTDIR "bin/scripts")
+            set(AMD_STANDALONE_TARGET_INSTALL_CONFIGDIR "etc/${AMD_TARGET_NAME}")
+            set(AMD_STANDALONE_TARGET_INSTALL_EXPORTDIR "lib/cmake/${AMD_TARGET_NAME}")
+            set(AMD_STANDALONE_TARGET_INSTALL_SYMLINKDIR "bin")
+            
+            message(STATUS "  >> INSTALL_BASE_PATH: ${AMD_STANDALONE_TARGET_INSTALL_PATH} ...")
+            set(AMD_TARGET_INSTALL_PATH "${AMD_STANDALONE_TARGET_INSTALL_PATH}/${AMD_STANDALONE_TARGET_INSTALL_LIBDIR}")
+            file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
+            foreach(copy_file ${LIBAMD_DYNLIB_MGMT_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            foreach(copy_file ${LIBAMD_WORK_BENCH_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            foreach(copy_file ${LIBAMD_COMMON_TB_ENGINE_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            foreach(copy_file ${LIBAMD_PLUGIN_TB_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            set(AMD_TARGET_INSTALL_PATH "${AMD_STANDALONE_TARGET_INSTALL_PATH}/${AMD_STANDALONE_TARGET_INSTALL_LIBDIR}/${AMD_TARGET_NAME}/${AMD_STANDALONE_TARGET_INSTALL_PLUGINSDIR}")
+            file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})            
+            foreach(copy_file ${LIBAMD_PLUGINS_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            set(AMD_TARGET_INSTALL_PATH "${AMD_STANDALONE_TARGET_INSTALL_PATH}/${AMD_STANDALONE_TARGET_INSTALL_BINDIR}")
+            file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
+            foreach(bin_copy_file ${BINAMD_WORK_BENCH_FILES})
+                file(INSTALL ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE EXECUTABLE FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                # Check if binary file has "_" and replace with "-" for a symlink name
+                get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
+                string(FIND "${bin_copy_file_name}" "_" character_index)
+                if(${character_index} GREATER -1)
+                    string(REPLACE "_" "-" symlink_file_name "${bin_copy_file_name}")
+                    file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} SYMBOLIC)
+                endif()                
+            endforeach()
+
+        elseif("${install_flag}" STREQUAL "ROCM_BUILD_PACKAGE")
+            set(AMD_ROCM_TARGET_INSTALL_PATH "${AMD_TARGET_INSTALL_STAGING}/opt/rocm")
+            set(AMD_ROCM_TARGET_INSTALL_LIBDIR "lib")
+            set(AMD_ROCM_TARGET_INSTALL_PLUGINSDIR "plugins")            
+            set(AMD_ROCM_TARGET_INSTALL_INCLUDEDIR "include")
+            set(AMD_ROCM_TARGET_INSTALL_BINDIR "bin")
+            set(AMD_ROCM_TARGET_INSTALL_DOCDIR "share/doc")
+            set(AMD_ROCM_TARGET_INSTALL_SCRIPTDIR "bin/scripts")
+            set(AMD_ROCM_TARGET_INSTALL_CONFIGDIR "etc/${AMD_TARGET_NAME}")
+            set(AMD_ROCM_TARGET_INSTALL_EXPORTDIR "lib/cmake/${AMD_TARGET_NAME}")
+            set(AMD_ROCM_TARGET_INSTALL_SYMLINKDIR "bin")
+
+            message(STATUS "  >> INSTALL_BASE_PATH: ${AMD_ROCM_TARGET_INSTALL_PATH} ...")
+            set(AMD_TARGET_INSTALL_PATH "${AMD_ROCM_TARGET_INSTALL_PATH}/${AMD_ROCM_TARGET_INSTALL_LIBDIR}")
+            file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
+            foreach(copy_file ${LIBAMD_DYNLIB_MGMT_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            foreach(copy_file ${LIBAMD_WORK_BENCH_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            foreach(copy_file ${LIBAMD_COMMON_TB_ENGINE_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            foreach(copy_file ${LIBAMD_PLUGIN_TB_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+            
+            set(AMD_TARGET_INSTALL_PATH "${AMD_ROCM_TARGET_INSTALL_PATH}/${AMD_ROCM_TARGET_INSTALL_LIBDIR}/${AMD_TARGET_NAME}/${AMD_ROCM_TARGET_INSTALL_PLUGINSDIR}")
+            file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
+            foreach(copy_file ${LIBAMD_PLUGINS_FILES})
+                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            set(AMD_TARGET_INSTALL_PATH "${AMD_ROCM_TARGET_INSTALL_PATH}/${AMD_ROCM_TARGET_INSTALL_BINDIR}")
+            file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
+            foreach(bin_copy_file ${BINAMD_WORK_BENCH_FILES})
+                file(INSTALL ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE EXECUTABLE FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                # Check if binary file has "_" and replace with "-" for a symlink name
+                get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
+                string(FIND "${bin_copy_file_name}" "_" character_index)
+                if(${character_index} GREATER -1)
+                    string(REPLACE "_" "-" symlink_file_name "${bin_copy_file_name}")
+                    file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} SYMBOLIC)
+                endif()
+            endforeach()
+
+        else()
+            message(FATAL_ERROR "Invalid type: '${install_flag}' for dynamic_install().")
+        endif()
+    else()
+        message(STATUS "Skipping installation of ${target_name}")
+    endif()
+endfunction()
+
+
+###############################################################################
+##  Check: ./build/post_build_utils_env.cmake
+##      Any changes in setup_distribution_package() in build_utils.cmake 
+##      should be reflected here. 
+##  ENGINEERING_BUILD_PACKAGE:
+##  set(AMD_TARGET_PROJECT_BASE "/mlse/work/projects/rocm_docker/rocm-bandwidth-test")
+##  set(AMD_TARGET_INSTALL_PREFIX "/mlse/work/projects/rocm_docker/rocm-bandwidth-test/build/install-test")
+##  set(AMD_TARGET_INSTALL_FLAG_TYPE "ENGINEERING_BUILD_PACKAGE")
+##  set(AMD_TARGET_NAME "rocm-bandwidth-test")
+##  set(AMD_TARGET_INSTALL_TYPE "TARGET")
+##  set(AMD_TARGET_INSTALL TRUE)
+##  set(AMD_TARGET_INSTALL_DIRECTORY "engineering_build")
+##  set(AMD_TARGET_INSTALL_PERMISSIONS "")
+##  
+##  STANDALONE_BUILD_PACKAGE:
+##  set(AMD_TARGET_PROJECT_BASE "/src/rocm-bandwidth-test")
+##  set(AMD_TARGET_INSTALL_PREFIX "/usr/local")
+##  set(AMD_TARGET_INSTALL_FLAG_TYPE "STANDALONE_BUILD_PACKAGE")
+##  set(AMD_TARGET_NAME "rocm_bandwidth_test")
+##  set(AMD_TARGET_INSTALL_TYPE "TARGET")
+##  set(AMD_TARGET_INSTALL TRUE)
+##  set(AMD_TARGET_INSTALL_DIRECTORY "")
+##  set(AMD_TARGET_INSTALL_PERMISSIONS "")
+##
+## ROCM_BUILD_PACKAGE (manual):
+##  set(AMD_TARGET_PROJECT_BASE "/src/rocm-bandwidth-test")
+##  set(AMD_TARGET_INSTALL_PREFIX "/usr/local")
+##  set(AMD_TARGET_INSTALL_FLAG_TYPE "ROCM_BUILD_PACKAGE")
+##  set(AMD_TARGET_NAME "rocm_bandwidth_test")
+##  set(AMD_TARGET_INSTALL_TYPE "TARGET")
+##  set(AMD_TARGET_INSTALL TRUE)
+##  set(AMD_TARGET_INSTALL_DIRECTORY "")
+##  set(AMD_TARGET_INSTALL_PERMISSIONS "")
+##  set(AMD_TARGET_INSTALL_STAGING "/src/rocm-bandwidth-test/build/staging")
+##  
+##  ROCM_BUILD_PACKAGE (automatic):
+##  set(AMD_TARGET_PROJECT_BASE "/src/rocm-bandwidth-test")
+##  set(AMD_TARGET_INSTALL_PREFIX "/src/out/ubuntu-24.04/24.04")
+##  set(AMD_TARGET_INSTALL_FLAG_TYPE "ROCM_BUILD_PACKAGE")
+##  set(AMD_TARGET_NAME "rocm_bandwidth_test")
+##  set(AMD_TARGET_INSTALL_TYPE "TARGET")
+##  set(AMD_TARGET_INSTALL TRUE)
+##  set(AMD_TARGET_INSTALL_DIRECTORY "")
+##  set(AMD_TARGET_INSTALL_PERMISSIONS "")
+##  set(AMD_TARGET_INSTALL_STAGING "/src/out/ubuntu-24.04/24.04/build/rocm-bandwidth-test/staging")
+###############################################################################
+set(TARGET_INSTALL_BASE_PATH "${AMD_TARGET_INSTALL_PREFIX}")
+if (NOT TARGET_INSTALL_BASE_PATH STREQUAL "" AND NOT AMD_TARGET_INSTALL_DIRECTORY STREQUAL "")
+    set(TARGET_INSTALL_BASE_PATH "${TARGET_INSTALL_BASE_PATH}/${AMD_TARGET_INSTALL_DIRECTORY}")
+endif()
+if(TARGET_INSTALL_BASE_PATH STREQUAL "")
+    message(FATAL_ERROR "Invalid 'TARGET_INSTALL_BASE_PATH' install/package staging!")
+endif()
+
+## 
+dynamic_install("${AMD_TARGET_INSTALL_FLAG_TYPE}" 
+                "${AMD_TARGET_INSTALL_TYPE}" 
+                "${TARGET_INSTALL_BASE_PATH}"
+                "${AMD_TARGET_NAME}" 
+                "${AMD_TARGET_INSTALL_PERMISSIONS}")
+
+## end of post_build_utils.cmake

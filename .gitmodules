@@ -1,0 +1,27 @@
+[submodule "deps/3rd_party/CLI11"]
+	path = deps/3rd_party/CLI11
+	url = https://github.com/CLIUtils/CLI11.git
+[submodule "deps/3rd_party/fmt"]
+	path = deps/3rd_party/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "deps/3rd_party/json"]
+	path = deps/3rd_party/json
+	url = https://github.com/nlohmann/json.git
+[submodule "deps/3rd_party/spdlog"]
+	path = deps/3rd_party/spdlog
+	url = https://github.com/gabime/spdlog
+[submodule "deps/3rd_party/jthread/jthread"]
+	path = deps/3rd_party/jthread/jthread
+	url = https://github.com/josuttis/jthread
+[submodule "deps/external/tb"]
+	path = deps/external/tb
+	url = https://github.com/ROCm/TransferBench.git
+[submodule "deps/external/TransferBench"]
+	path = deps/external/TransferBench
+	url = https://github.com/ROCmSoftwarePlatform/TransferBench.git
+[submodule "deps/3rd_party/Catch2"]
+	path = deps/3rd_party/Catch2
+	url = https://github.com/catchorg/Catch2.git
+[submodule "deps/3rd_party/stacktrace"]
+	path = deps/3rd_party/stacktrace
+	url = https://github.com/boostorg/stacktrace.git

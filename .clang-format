@@ -1,0 +1,72 @@
+---
+# See options here:
+# https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+# Last update: Tue Jun 28 06:26:41 PM CDT 2022 (daniel.oliveira@amd.com / dmitrii.galantsev@amd.com)
+#
+Language: Cpp
+BasedOnStyle: Google
+
+AccessModifierOffset: 0
+AlignArrayOfStructures: Left
+AlignConsecutiveAssignments: None
+AlignOperands: DontAlign
+AllowAllArgumentsOnNextLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortLambdasOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakBeforeMultilineStrings: false
+AlwaysBreakTemplateDeclarations: Yes
+BinPackArguments: false
+BinPackParameters: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Never
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterObjCDeclaration: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: true
+ColumnLimit: 130
+Cpp11BracedListStyle: true
+IndentCaseBlocks: true
+IndentWidth: 4
+MaxEmptyLinesToKeep: 2
+SpaceAfterTemplateKeyword: false
+SpacesBeforeTrailingComments: 4
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Left
+Standard: Latest
+# These must go in order from most to least specific.
+# Priority number goes from lowest to highest.
+# Higher the number - lower the include position.
+SortIncludes: Never
+#SortIncludes: CaseSensitive
+#IncludeBlocks: Regroup
+#IncludeCategories:
+#  # Specific external headers in <> to put first [Unit/Functional tests]
+#  - Regex: "<(catch2|gtest).*>"
+#    Priority: 1
+#  # Local headers in "" [Local headers related to the solution]
+#  - Regex: '"[-\w\/-_]*"'
+#    Priority: 2
+#  # External headers in <extern/> with extension or / [Usually libraries]
+#  - Regex: '<extern[-\w\/-_]+[\.\/][-\w\/-_]+>'
+#    Priority: 5
+#  # External headers in <> with extension or /  [Helps grouping 'C headers']
+#  - Regex: '<[-\w\/-_]+[\.\/][-\w\/-_]+>'
+#    Priority: 3
+#  # Standard headers in <>  [C++ headers]
+#  - Regex: '<[-\w\/-_]+>'
+#    Priority: 4
+
+IndentAccessModifiers: true
+
+---
+
