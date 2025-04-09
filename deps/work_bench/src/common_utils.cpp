@@ -62,7 +62,7 @@
 namespace amd_work_bench::utils
 {
 
-std::optional<std::string> get_env_var(const std::string& var_name)
+auto get_env_var(const std::string& var_name) -> std::optional<std::string>
 {
     auto env_var = std::getenv(var_name.c_str());
     if (env_var == nullptr) {
@@ -176,6 +176,49 @@ auto trim_all(std::string& text) -> void
 auto trim_all_copy(std::string text) -> std::string
 {
     trim_all(text);
+    return text;
+}
+
+auto split_str(const std::string& text, char delimiter) -> std::vector<std::string>
+{
+    auto tokens = std::vector<std::string>{};
+    auto token_stream = std::istringstream(text);
+    for (std::string line; std::getline(token_stream, line, delimiter);) {
+        tokens.emplace_back(line);
+    }
+
+    return tokens;
+}
+
+auto replace_all_copy(std::string text, const std::string& src, const std::string& tgt) -> std::string
+{
+    auto start_position = size_t(0);
+    while ((start_position = text.find(src, start_position)) != std::string::npos) {
+        text.replace(start_position, src.size(), tgt);
+        start_position += tgt.size();
+    }
+
+    return text;
+}
+
+auto replace_all(std::string& text, const std::string& src, const std::string& tgt) -> void
+{
+    while (text.find(src) != std::string::npos) {
+        text.replace(text.find(src), src.size(), tgt);
+    }
+}
+
+auto remove_all(std::string& text, char src) -> void
+{
+    auto start_position = size_t(0);
+    while ((start_position = text.find(src, start_position)) != std::string::npos) {
+        text.erase(std::find(text.begin(), text.end(), src));
+    }
+}
+
+auto remove_all_copy(std::string text, char src) -> std::string
+{
+    remove_all(text, src);
     return text;
 }
 

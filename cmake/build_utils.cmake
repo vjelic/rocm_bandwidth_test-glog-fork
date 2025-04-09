@@ -28,6 +28,46 @@ include(FetchContent)
 
 #
 # Note: All functions definitions here
+function(setup_rocm_auto_build_environment is_auto_detect_rocm_build is_rocm_build_package_result)
+    message(STATUS ">> ROCm auto build environment checking...")
+    if(is_rocm_build_package_result)
+        message(STATUS ">> ROCm build package already set up!")
+        return()
+    endif()
+    if(NOT is_auto_detect_rocm_build)
+        set(${is_rocm_build_package_result} FALSE PARENT_SCOPE)    
+        return()
+    endif()
+
+    ##
+    message(STATUS "  >> ROCm build environment: ${${is_auto_detect_rocm_build}}")
+    if(${is_auto_detect_rocm_build})
+        ## Disable ROCM_WARN_TOOLCHAIN warnings by default
+        set(ROCM_WARN_TOOLCHAIN_VAR OFF CACHE BOOL "ROCM_WARN_TOOLCHAIN warnings disabled: 'OFF'")
+        set(ROCM_DEFAULT_PATH "/opt/rocm")
+        if(DEFINED ENV{ROCM_PATH})
+            message(STATUS "  >> ROCM_PATH is set. ROCm build package enabled and using: '$ENV{ROCM_PATH}'")
+            set(ROCM_PATH "$ENV{ROCM_PATH}" CACHE STRING "ROCm install directory")
+        else()
+            message(STATUS "  >> ROCM_PATH is not set. ROCm build package will be set to: '${ROCM_DEFAULT_PATH}'")
+            set(ROCM_PATH ${ROCM_DEFAULT_PATH} CACHE STRING "ROCm install directory")
+        endif()
+
+        ##list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH} ${ROCM_PATH}/hip)
+        ##find_package(HIP QUIET PATHS ${ROCM_PATH})
+        find_package(ROCmCMakeBuildTools QUIET PATHS ${ROCM_PATH})
+        find_package(ROCM QUIET PATHS ${ROCM_PATH})
+        find_package(hsa-runtime64 QUIET PATHS ${ROCM_PATH})
+        if((ROCmCMakeBuildTools_FOUND OR ROCM_FOUND) AND hsa-runtime64_FOUND)
+            message(STATUS "  >> ROCm build environment/dependencies were found. ROCm build/package is set up!")
+            set(${is_rocm_build_package_result} TRUE PARENT_SCOPE)
+        else()
+            message(STATUS "  >> ROCm build environment/dependencies requirements not met. Only standalone build/package is available!")
+            set(${is_rocm_build_package_result} FALSE PARENT_SCOPE)
+        endif()
+    endif()
+endfunction()
+
 function(setup_build_version version_num version_text)
     set(TARGET_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${TARGET_VERSION_FILE})
@@ -40,7 +80,6 @@ function(setup_build_version version_num version_text)
     #string(REGEX REPLACE "[0-9]+\\.([0-9]+)\\.[0-9]+.*" "\\1" CPACK_PACKAGE_VERSION_MINOR ${file_version_text})
     #string(REGEX REPLACE "[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1" CPACK_PACKAGE_VERSION_PATCH ${file_version_text})
     #set(PROJECT_VERSION ${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH})
-
     set(${version_num} ${file_version} PARENT_SCOPE)
     set(${version_text} ${file_version_text} PARENT_SCOPE)
 endfunction()
@@ -79,7 +118,72 @@ function(has_minimum_compiler_version_for_standard cpp_standard compiler_id comp
     endif()
 endfunction()
 
+function(check_default_compiler_requirements result)
+    set(HAS_DEFAULT_COMPILER_REQUIREMENTS FALSE)
+    if(AMD_APP_COMPILER_TRY_CLANG)
+        set(CLANG_COMPILER_MAJOR_VERSION_REQUIRED "19")
+        set(CLANG_COMPILER_MINOR_VERSION_REQUIRED "0")
+        set(CLANG_COMPILER_REVISION_VERSION_REQUIRED "0")
+        set(CLANG_COMPILER_MINIMUM_VERSION_REQUIRED "${CLANG_COMPILER_MAJOR_VERSION_REQUIRED}.${CLANG_COMPILER_MINOR_VERSION_REQUIRED}.${CLANG_COMPILER_REVISION_VERSION_REQUIRED}")
+        set(ROCM_LLVM_BIN_PATH  "/opt/rocm/lib/llvm/bin/")
+        message(WARNING ">> Trying to setup 'Clang++' as default compiler (COMPILER_TRY_CLANG=ON)")
+        message(STATUS "  >> Minimum version required for setting: 'v${CLANG_COMPILER_MINIMUM_VERSION_REQUIRED}'")
+        find_program(CLANG_COMPILER_CXX clang++ HINTS ${CMAKE_CXX_COMPILER_PATH} ${CMAKE_CXX_COMPILER} ${ROCM_LLVM_BIN_PATH})
+        if(CLANG_COMPILER_CXX)
+            execute_process( 
+                COMMAND ${CLANG_COMPILER_CXX} -dumpversion
+                OUTPUT_VARIABLE CLANG_COMPILER_VERSION
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+
+            ## Check if the version is valid
+            string(REGEX MATCHALL "[0-9]+" CLANG_COMPILER_VERSION_COMPONENTS "${CLANG_COMPILER_VERSION}")
+            if(CLANG_COMPILER_VERSION_COMPONENTS)
+                list(GET CLANG_COMPILER_VERSION_COMPONENTS 0 CLANG_COMPILER_VERSION_MAJOR)
+                list(GET CLANG_COMPILER_VERSION_COMPONENTS 1 CLANG_COMPILER_VERSION_MINOR)
+                list(GET CLANG_COMPILER_VERSION_COMPONENTS 2 CLANG_COMPILER_VERSION_REVISION)
+                ## 
+                if(CLANG_COMPILER_VERSION_MAJOR GREATER_EQUAL ${CLANG_COMPILER_MAJOR_VERSION_REQUIRED} AND 
+                   CLANG_COMPILER_VERSION_MINOR GREATER_EQUAL ${CLANG_COMPILER_MINOR_VERSION_REQUIRED})
+                    set(CLANG_COMPILER_VERSION_RESULT TRUE)
+                else()
+                    set(CLANG_COMPILER_VERSION_RESULT FALSE)
+                endif()
+            endif()
+            
+            if(NOT CLANG_COMPILER_VERSION_RESULT)
+                message(WARNING ">> 'Clang++' compiler v'${CLANG_COMPILER_VERSION}' is not as default compiler! Minimum version required: 'v${CLANG_COMPILER_MINIMUM_VERSION_REQUIRED}'")
+                message(STATUS  "  >> falling back default compiler 'g++' and requirements...")
+            else()
+                set(HAS_DEFAULT_COMPILER_REQUIREMENTS TRUE)
+                get_filename_component(DEFAULT_COMPILER_DIRECTORY_NAME "${CLANG_COMPILER_CXX}" DIRECTORY)
+                set(CLANG_COMPILER_C "${DEFAULT_COMPILER_DIRECTORY_NAME}/clang")
+                set(CMAKE_CXX_COMPILER ${CLANG_COMPILER_CXX})
+                set(CMAKE_C_COMPILER ${CLANG_COMPILER_C})
+                #set(CMAKE_CXX_COMPILER_ID "Clang")
+                #set(CMAKE_C_COMPILER_ID "Clang")
+                message(STATUS "  >> Setting compiler to: '${CMAKE_CXX_COMPILER}' v${CLANG_COMPILER_VERSION_MAJOR}.${CLANG_COMPILER_VERSION_MINOR}.${CLANG_COMPILER_VERSION_REVISION}")
+            endif()
+
+        else()
+            message(FATAL_ERROR ">> 'Clang++' compiler not found (COMPILER_TRY_CLANG=ON)!")
+        endif()
+
+        if (HAS_DEFAULT_COMPILER_REQUIREMENTS)
+            set(${result} FALSE PARENT_SCOPE)
+        else()
+            set(${result} TRUE PARENT_SCOPE)
+        endif()
+    endif()        
+endfunction()
+
 function(check_compiler_requirements component_name)
+    check_default_compiler_requirements(WAS_TRY_CLANG_DEFAULT_COMPILER)
+    if(WAS_TRY_CLANG_DEFAULT_COMPILER)
+        message(STATUS ">> COMPILER_TRY_CLANG=ON: Default compiler already set to 'Clang++' ...")
+        return()
+    endif()
+
     if(CMAKE_CXX_STANDARD EQUAL 23)
         #set(GCC_COMPILER_MINIMUM_VERSION "13.0.0")
         set(GCC_COMPILER_MINIMUM_VERSION "12.3.0")
@@ -112,12 +216,22 @@ function(setup_unity_build target_name)
 endfunction()
 
 function(setup_sdk_options)
-    set(SDK_INSTALL_PATH "share/${AMD_TARGET_NAME}/sdk" PARENT_SCOPE)
-    set(SDK_BUILD_PATH "${CMAKE_BINARY_DIR}/sdk" PARENT_SCOPE)
+    message(STATUS ">> Setting up SDK components:")
+    if (NOT AMD_TARGET_NAME)
+        set(AMD_TARGET_NAME "rocm-bandwidth-test")
+        message(WARNING "  >> Project: 'AMD_TARGET_NAME' was not defined! Using default name: '${AMD_TARGET_NAME}'")
+    endif()
+    set(SDK_INSTALL_PATH "share/${AMD_TARGET_NAME}/sdk")
+    set(SDK_BUILD_PATH "${CMAKE_BINARY_DIR}/sdk")
+    set(SDK_INSTALL_PATH ${SDK_INSTALL_PATH} PARENT_SCOPE)
+    set(SDK_BUILD_PATH ${SDK_BUILD_PATH} PARENT_SCOPE)
+    message(STATUS "  >> SDK_INSTALL_PATH: '${SDK_INSTALL_PATH}'")
+    message(STATUS "  >> SDK_BUILD_PATH  : '${SDK_BUILD_PATH}'")
+    message(STATUS "  >> AMD_TARGET_NAME : '${AMD_TARGET_NAME}'")
+    message(STATUS "  >> SOURCE_DIR : '${CMAKE_SOURCE_DIR}'")
 
-    install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/work_bench DESTINATION "${SDK_INSTALL_PATH}/lib" PATTERN "**/src/*" EXCLUDE)
-    install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/external DESTINATION "${SDK_INSTALL_PATH}/lib")
-
+    install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/work_bench DESTINATION "${SDK_INSTALL_PATH}/deps" PATTERN "**/src/*" EXCLUDE)
+    install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/external DESTINATION "${SDK_INSTALL_PATH}/deps")
     if(NOT USE_LOCAL_FMT_LIB)
         install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/fmt DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
     endif()
@@ -126,9 +240,9 @@ function(setup_sdk_options)
         install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/json DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
     endif()
 
-    if(NOT USE_LOCAL_BOOST)
-        install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/boost DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
-    endif()
+    #if(NOT USE_LOCAL_BOOST)
+    #    install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/boost DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
+    #endif()
 
     if(NOT USE_LOCAL_BOOST_STACKTRACE)
         install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/stacktrace DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
@@ -140,8 +254,8 @@ function(setup_sdk_options)
 
     install(DIRECTORY ${CMAKE_SOURCE_DIR}/cmake/modules/ DESTINATION "${SDK_INSTALL_PATH}/cmake")
     install(DIRECTORY ${CMAKE_SOURCE_DIR}/cmake/sdk/ DESTINATION "${SDK_INSTALL_PATH}")
-    install(FILES ${CMAKE_SOURCE_DIR}/cmake/buid_utils.cmake DESTINATION "${SDK_INSTALL_PATH}/cmake")
-    install(TARGETS ${AMD_TARGET_LIBNAME} ARCHIVE DESTINATION "${SDK_INSTALL_PATH}/lib")
+    install(FILES ${CMAKE_SOURCE_DIR}/cmake/build_utils.cmake DESTINATION "${SDK_INSTALL_PATH}/cmake")
+    install(TARGETS ${AMD_TARGET_LIBNAME} ARCHIVE DESTINATION "${SDK_INSTALL_PATH}/deps")
 endfunction()
 
 function(add_include_from_library target_name library_name)
@@ -272,7 +386,7 @@ macro(setup_cmake target_name target_version)
 
     # Lets give priority to MOLD linker
     set(AMD_WORK_BENCH_LINKER_OPTION "")
-    if(LD_MOLD_PATH)
+    if(LD_MOLD_PATH AND AMD_APP_LINKER_TRY_MOLD)
         set(CMAKE_LINKER ${LD_MOLD_PATH})
         set(AMD_WORK_BENCH_LINKER_OPTION "-fuse-ld=mold")
     # Then LLD linker
@@ -339,7 +453,6 @@ macro(check_builtin_plugin_set)
     endif()
 
     file(GLOB PLUGINS_DIRECTORIES "plugins/*")
-
     if(NOT DEFINED AMD_WORK_BENCH_INCLUDE_PLUGINS)
         foreach(PLUGIN_DIRECTORY ${PLUGINS_DIRECTORIES})
             if(EXISTS ${PLUGIN_DIRECTORY}/CMakeLists.txt)
@@ -368,7 +481,7 @@ macro(check_builtin_plugin_set)
 endmacro()
 
 macro(check_os_build_definitions)
-    if(UNIX AND NOT APPLE)
+    if(CMAKE_SYSTEM_NAME MATCHES "Linux")
         add_compile_definitions(OS_LINUX)
         include(GNUInstallDirs)
 
@@ -378,6 +491,18 @@ macro(check_os_build_definitions)
             set(PLUGIN_INSTALL_PATH "${CMAKE_INSTALL_LIBDIR}/${AMD_TARGET_NAME}/plugins")
             add_compile_definitions(SYSTEM_DEFAULT_PLUGIN_INSTALL_PATH="${CMAKE_INSTALL_FULL_LIBDIR}/${AMD_TARGET_NAME}")
         endif()
+
+        set(PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST 
+        "./plugins" 
+        "/opt/rocm/lib/${AMD_TARGET_NAME}"
+        "${CMAKE_INSTALL_PREFIX}/lib/${AMD_TARGET_NAME}/plugins"
+        "${CMAKE_INSTALL_PREFIX}/share/${AMD_TARGET_NAME}/plugins"
+    )
+    list(JOIN PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST ":" PLUGIN_BUILTIN_LOOKUP_PATH_ALL_STRING)
+    set(SYSTEM_PLUGIN_BUILTIN_LOOKUP_PATH_ALL "${PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST}")
+    add_compile_definitions(SYSTEM_PLUGIN_BUILTIN_LOOKUP_PATH_ALL="${PLUGIN_BUILTIN_LOOKUP_PATH_ALL_STRING}")
+
+
     else()
         message(FATAL_ERROR ">> System is not supported!")
     endif()
@@ -396,13 +521,29 @@ macro(add_build_definitions)
     if(AMD_APP_STATIC_LINK_PLUGINS)
         add_compile_definitions(AMD_APP_STATIC_LINK_PLUGINS)
     endif()
+
+    if (AMD_APP_STANDALONE_BUILD_PACKAGE)
+        ## Standalone definition
+        add_compile_definitions(AMD_APP_STANDALONE_BUILD_PACKAGE)
+    elseif(AMD_APP_ENGINEERING_BUILD_PACKAGE)
+        ## Engineering definition
+        add_compile_definitions(AMD_APP_ENGINEERING_BUILD_PACKAGE)
+    elseif(AMD_APP_ROCM_BUILD_PACKAGE)
+        ## ROCm definition
+        add_compile_definitions(AMD_APP_ROCM_BUILD_PACKAGE)
+    endif()
 endmacro()
 
 macro(setup_packaging_options)
-    set(TARGET_FS_PERMISSIONS
+    set(TARGET_FS_LIBRARY_PERMISSIONS
         OWNER_READ OWNER_WRITE OWNER_EXECUTE
         GROUP_READ GROUP_EXECUTE
         WORLD_READ WORLD_EXECUTE)
+        
+    set(TARGET_FS_EXECUTABLE_PERMISSIONS
+        OWNER_READ OWNER_WRITE OWNER_EXECUTE
+        GROUP_READ GROUP_WRITE GROUP_EXECUTE
+        WORLD_READ WORLD_EXECUTE)        
 endmacro()
 
 macro(setup_install_target)
@@ -549,25 +690,138 @@ endmacro()
 
 macro(setup_distribution_package)
     set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES SOVERSION ${AMD_TARGET_VERSION})
-
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/dist/package-info.spec.in ${CMAKE_BINARY_DIR}/dist/control)
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_PREFIX}/share/licenses/${AMD_TARGET_NAME})
 
     # ###TODO: Do we need any downloads? or symlinks?
-    # file(CREATE_LINK $symlink_name  ${CMAKE_CURRENT_BINARY_DIR}/original_file SYMBOLIC)
+    # file(CREATE_LINK $symlink_name ${CMAKE_CURRENT_BINARY_DIR}/original_file SYMBOLIC)
+    # file(CREATE_LINK rbt ${CMAKE_CURRENT_BINARY_DIR}/rocm-bandwidth-test/scripts/rbt.sh SYMBOLIC)
     # #set(CMAKE_INSTALL_BINDIR "bin")
     install(TARGETS awb_main RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-    if(AMD_APP_BUILD_PACKAGE)
-        set(CPACK_BUNDLE_NAME "amd-work-bench")
-        include(CPack)
+    # Get string and replace "_", so from 'rocm_bandwidth_test_2025.03.21_amd64.deb' to 
+    # 'rocm-bandwidth-test-2025.03.21_amd64.deb'
+    set(AMD_TARGET_BUNDLE_BASE_NAME ${AMD_PROJECT_NAME})
+    if(AMD_TARGET_BUNDLE_BASE_NAME STREQUAL "")
+        set(AMD_TARGET_BUNDLE_BASE_NAME "rocm-bandwidth-test")
     endif()
+    string(REPLACE "_" "-" AMD_TARGET_BUNDLE_BASE_NAME "${AMD_TARGET_BUNDLE_BASE_NAME}")
+
+    ## Standard package directives for all package build types
+    string(TIMESTAMP CURRENT_BUILD_YEAR "%Y")
+    set(AMD_PROJECT_COPYRIGHT_ORGANIZATION "Advanced Micro Devices, Inc. All rights reserved.")
+    set(AMD_PROJECT_COPYRIGHT_NOTE "Copyright (c) ${CURRENT_BUILD_YEAR} ${AMD_PROJECT_COPYRIGHT_ORGANIZATION}")
+    ## Copyright © 2024 Advanced Micro Devices, Inc. All rights reserved.
+    set(CPACK_PACKAGE_VENDOR ${AMD_PROJECT_AUTHOR_ORGANIZATION})
+    set(CPACK_PACKAGE_VERSION_MAJOR ${AMD_PROJECT_VERSION_MAJOR})
+    set(CPACK_PACKAGE_VERSION_MINOR ${AMD_PROJECT_VERSION_MINOR})
+    set(CPACK_PACKAGE_VERSION_PATCH ${AMD_PROJECT_VERSION_PATCH})
+    set(CPACK_PACKAGE_CONTACT ${AMD_PROJECT_AUTHOR_MAINTAINER})
+    # Prepare final version for the CPACK use
+    set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
+    ##string(APPEND AMD_TARGET_BUNDLE_BASE_NAME "-${AMD_TARGET_VERSION}") 
+    set(CPACK_PACKAGE_NAME ${AMD_TARGET_BUNDLE_BASE_NAME})
+
+    # Debian package specific variables
+    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE ${AMD_PROJECT_GITHUB_REPO})
+    set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+    # RPM package specific variables
+    set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
+    set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+    set(CPACK_GENERATOR "DEB;RPM")
+
+    ## Set the package types
+    if(AMD_APP_STANDALONE_BUILD_PACKAGE)
+        ## Standalone build package
+        set(AMD_TARGET_POST_BUILD_ENV "${CMAKE_BINARY_DIR}/post_build_utils_env.cmake") 
+        file(WRITE ${AMD_TARGET_POST_BUILD_ENV} "" "
+            set(AMD_TARGET_PROJECT_BASE \"${CMAKE_CURRENT_SOURCE_DIR}\")
+            set(AMD_TARGET_INSTALL_PREFIX \"${CMAKE_INSTALL_PREFIX}\")
+            set(AMD_TARGET_INSTALL_FLAG_TYPE \"STANDALONE_BUILD_PACKAGE\")
+            set(AMD_TARGET_NAME \"${AMD_TARGET_NAME}\")
+            set(AMD_TARGET_INSTALL_TYPE \"TARGET\")
+            set(AMD_TARGET_INSTALL TRUE)
+            set(AMD_TARGET_INSTALL_DIRECTORY \"\")
+            set(AMD_TARGET_INSTALL_PERMISSIONS \"\")
+            set(AMD_TARGET_INSTALL_STAGING \"${CMAKE_BINARY_DIR}/staging\")
+        ")
+        ## Packaging directives (standalone build)
+        set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Utility tool for benchmarking device performance")
+
+    elseif(AMD_APP_ENGINEERING_BUILD_PACKAGE)
+        ## Engineering build package
+        set(AMD_TARGET_POST_BUILD_ENV "${CMAKE_BINARY_DIR}/post_build_utils_env.cmake")
+        file(WRITE ${AMD_TARGET_POST_BUILD_ENV} "" "
+            set(AMD_TARGET_PROJECT_BASE \"${CMAKE_CURRENT_SOURCE_DIR}\")
+            set(AMD_TARGET_INSTALL_PREFIX \"${CMAKE_INSTALL_PREFIX}\")
+            set(AMD_TARGET_INSTALL_FLAG_TYPE \"ENGINEERING_BUILD_PACKAGE\")
+            set(AMD_TARGET_NAME \"${AMD_TARGET_NAME}\")
+            set(AMD_TARGET_INSTALL_TYPE \"TARGET\")
+            set(AMD_TARGET_INSTALL TRUE)
+            set(AMD_TARGET_INSTALL_DIRECTORY \"engineering_build\")
+            set(AMD_TARGET_INSTALL_PERMISSIONS \"\")
+            set(AMD_TARGET_INSTALL_STAGING \"${CMAKE_BINARY_DIR}/staging\")
+        ")
+    elseif(AMD_APP_ROCM_BUILD_PACKAGE)
+        ## ROCm build package
+        set(AMD_TARGET_POST_BUILD_ENV "${CMAKE_BINARY_DIR}/post_build_utils_env.cmake")
+        file(WRITE ${AMD_TARGET_POST_BUILD_ENV} "" "
+            set(AMD_TARGET_PROJECT_BASE \"${CMAKE_CURRENT_SOURCE_DIR}\")
+            set(AMD_TARGET_INSTALL_PREFIX \"${CMAKE_INSTALL_PREFIX}\")
+            set(AMD_TARGET_INSTALL_FLAG_TYPE \"ROCM_BUILD_PACKAGE\")
+            set(AMD_TARGET_NAME \"${AMD_TARGET_NAME}\")
+            set(AMD_TARGET_INSTALL_TYPE \"TARGET\")
+            set(AMD_TARGET_INSTALL TRUE)
+            set(AMD_TARGET_INSTALL_DIRECTORY \"\")
+            set(AMD_TARGET_INSTALL_PERMISSIONS \"\")
+            set(AMD_TARGET_INSTALL_STAGING \"${CMAKE_BINARY_DIR}/staging\")
+        ")
+        ## Package directives (ROCm build)
+        ## Make proper version for appending
+        ## Default Value is 99999, setting it first
+        set(ROCM_VERSION_FOR_PACKAGE "99999")
+        if(DEFINED ENV{ROCM_LIBPATCH_VERSION})
+            set(ROCM_VERSION_FOR_PACKAGE $ENV{ROCM_LIBPATCH_VERSION})
+        endif()
+        set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}-${ROCM_VERSION_FOR_PACKAGE}")
+        set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ROCm utility tool for benchmarking device performance")
+
+        ## Debian package specific variables
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "libstdc++6, hsa-rocr")
+        if (DEFINED ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
+            set(CPACK_DEBIAN_PACKAGE_RELEASE $ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
+        else()
+            set(CPACK_DEBIAN_PACKAGE_RELEASE "local")
+        endif()
+
+        #
+        ## RPM package specific variables
+        set(CPACK_RPM_PACKAGE_REQUIRES "hsa-rocr")
+        if(DEFINED CPACK_PACKAGING_INSTALL_PREFIX)
+            set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "${CPACK_PACKAGING_INSTALL_PREFIX} ${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}")
+        endif()
+
+        if(DEFINED ENV{CPACK_RPM_PACKAGE_RELEASE})
+            set(CPACK_RPM_PACKAGE_RELEASE $ENV{CPACK_RPM_PACKAGE_RELEASE})
+        else()
+            set(CPACK_RPM_PACKAGE_RELEASE "local")
+        endif()
+        
+        #
+        ## Set rpm distro
+        if(CPACK_RPM_PACKAGE_RELEASE)
+            set(CPACK_RPM_PACKAGE_RELEASE_DIST ON)
+        endif()
+
+    else()
+        message(FATAL_ERROR ">> No distribution package type was not defined!")
+    endif()
+
+    
 endmacro()
 
 macro(setup_compression_flags)
     include(CheckCXXCompilerFlag)
     include(CheckLinkerFlag)
-
     check_cxx_compiler_flag(-gz=zstd ZSTD_AVAILABLE_COMPILER)
     check_linker_flag(CXX -gz=zstd ZSTD_AVAILABLE_LINKER)
     check_cxx_compiler_flag(-gz COMPRESS_AVAILABLE_COMPILER)
@@ -594,7 +848,7 @@ macro(setup_compiler_flags target_name)
             set(AMD_WORK_BENCH_COMMON_FLAGS "${AMD_WORK_BENCH_COMMON_FLAGS} -Werror -Wextra -Wall -Wpedantic -Wno-unused-variable -Wno-unused-function")
         endif()
 
-        if(UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        if(CMAKE_SYSTEM_NAME MATCHES "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
             set(AMD_WORK_BENCH_COMMON_FLAGS "${AMD_WORK_BENCH_COMMON_FLAGS} -rdynamic")
         endif()
 
@@ -653,3 +907,4 @@ macro(setup_compiler_flags target_name)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${AMD_WORK_BENCH_COMMON_FLAGS} ${AMD_WORK_BENCH_C_CXX_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${AMD_WORK_BENCH_COMMON_FLAGS} ${AMD_WORK_BENCH_C_CXX_FLAGS} ${AMD_WORK_BENCH_CXX_FLAGS}")
 endmacro()
+

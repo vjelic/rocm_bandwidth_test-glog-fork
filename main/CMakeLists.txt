@@ -32,10 +32,14 @@ if(WIN32)
 endif()
 
 # Set the project name
-set(AMD_WORK_BENCH_APPLICATION_NAME "amd_work_bench")
+set(AMD_WORK_BENCH_APPLICATION_NAME "rocm_bandwidth_test")
 add_subdirectory(cmdline)
 
 #
 # TODO: If a downloader piece is needed, add it here
 # add_subdirectory(downloader)
 #
+
+
+## End of CMakeLists.txt
+

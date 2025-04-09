@@ -25,19 +25,33 @@
 #
 cmake_minimum_required(VERSION 3.20)
 
-set(AMD_TARGET_NAME "amd_work_bench")
-set(AMD_TARGET_NAME_ALL "amd_work_bench_all")
-set(AMD_TARGET_LIBNAME "libwork_bench")
+set(AMD_TARGET_NAME "rocm_bandwidth_test")
+set(AMD_TARGET_NAME_ALL "${AMD_TARGET_NAME}_all")
+set(AMD_TARGET_LIBNAME "libamd_work_bench")
 
 project(${AMD_TARGET_LIBNAME}
     VERSION "0.0.1"
     LANGUAGES CXX C
     DESCRIPTION "amd-work-bench Library"
-    HOMEPAGE_URL "https://github.amd.com/LSTT/amd-work-bench"
+    HOMEPAGE_URL "https://github.com/ROCm/rocm_bandwidth_test"
 )
+
+message(STATUS "[[ Building... Project: " ${AMD_TARGET_LIBNAME} " ]] ...")
+
+# Flag to enable / disable verbose output.
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+# Export compile commands for linters and autocompleters
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ Standard in use")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# CMake specific directories
+set(AMD_APP_BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 
 # TODO: Add tests subdir and sources.
 set(LIBRARY_AMD_WORK_BENCH_SOURCES
@@ -111,10 +125,10 @@ setup_compiler_flags(${AMD_TARGET_LIBNAME})
 include(GenerateExportHeader)
 generate_export_header(${AMD_TARGET_LIBNAME})
 
+## Build Library
 set(EXTERNAL_BASE_INCLUDE_DIRS ${AMD_EXTERNAL_DEPS_DIRECTORY})
 set(DYNAMIC_LIB_MGMT_INCLUDE_DIRS ${AMD_EXTERNAL_DEPS_DIRECTORY}/dynamic_lib_mgmt/include)
-set(DYNAMIC_LIB_LIBRARIES "libdynlibmgmt")
-
+set(DYNAMIC_LIB_LIBRARIES "libamd_dynlib_mgmt")
 target_include_directories(${AMD_TARGET_LIBNAME} SYSTEM BEFORE PUBLIC ${WORK_BENCH_INCLUDE})
 target_include_directories(${AMD_TARGET_LIBNAME} ${AMD_WORK_BENCH_LIBRARY_TYPE} include ${FMT_INCLUDE_DIRS} ${BACKTRACE_INCLUDE_DIRECTORIES} ${EXTERNAL_BASE_INCLUDE_DIRS} ${DYNAMIC_LIB_MGMT_INCLUDE_DIRS})
 target_link_directories(${AMD_TARGET_LIBNAME} ${AMD_WORK_BENCH_LIBRARY_TYPE})
@@ -128,8 +142,24 @@ endif()
 
 target_link_libraries(${AMD_TARGET_LIBNAME} ${AMD_WORK_BENCH_LIBRARY_TYPE} ${NLOHMANN_JSON_LIBRARIES} ${SPDLOG_LIBRARIES} ${FMT_LIBRARIES} ${BOOST_LIBRARIES} ${DYNAMIC_LIB_LIBRARIES})
 set_property(TARGET ${AMD_TARGET_LIBNAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
-add_dependencies(amd_work_bench_all ${AMD_TARGET_LIBNAME})
+add_dependencies(${AMD_TARGET_NAME_ALL} ${AMD_TARGET_LIBNAME})
 
-install(FILES "$<TARGET_FILE:${AMD_TARGET_LIBNAME}>" DESTINATION "${CMAKE_INSTALL_LIBDIR}" PERMISSIONS ${LIBRARY_PERMISSIONS})
-set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+# Set output directories for all targets during build
+# "${CMAKE_BINARY_DIR}/bin"
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${AMD_APP_BASE_DIRECTORY}/lib")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${AMD_APP_BASE_DIRECTORY}/lib")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${AMD_APP_BASE_DIRECTORY}/lib")
+set(AMD_APP_BUILD_LIB_DIRECTORY "${AMD_APP_BASE_DIRECTORY}/lib")
+file(MAKE_DIRECTORY ${AMD_APP_BUILD_LIB_DIRECTORY})
+
+install(FILES "$<TARGET_FILE:${AMD_TARGET_LIBNAME}>" DESTINATION "${CMAKE_INSTALL_LIBDIR}" PERMISSIONS ${TARGET_FS_LIBRARY_PERMISSIONS})
+set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${AMD_APP_BUILD_LIB_DIRECTORY})
 set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES PREFIX "")
+
+# 
+## Install target: Provided by top CMakeLists.txt, so we can use a 'dynamic_install()' function
+#install(TARGETS ${AMD_TARGET_LIBNAME} LIBRARY DESTINATION lib)
+#install(TARGETS ${AMD_TARGET_LIBNAME} RUNTIME DESTINATION bin)
+
+
+## End of CMakeLists.txt

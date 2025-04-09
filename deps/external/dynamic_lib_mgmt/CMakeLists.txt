@@ -26,7 +26,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 # Set the project name
-set(AMD_TARGET_LIBNAME "libdynlibmgmt")
+set(AMD_TARGET_LIBNAME "libamd_dynlib_mgmt")
 project(${AMD_TARGET_LIBNAME}
     VERSION "0.0.1"
     LANGUAGES CXX C
@@ -71,8 +71,30 @@ target_link_libraries(${AMD_TARGET_LIBNAME} ${AMD_WORK_BENCH_LIBRARY_TYPE})
 set_property(TARGET ${AMD_TARGET_LIBNAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
 
 ##
-set(DYNAMIC_LIBRARY_MGMT_CXX_FLAGS "${DYNAMIC_LIBRARY_MGMT_CXX_FLAGS} -Werror -Wextra -Wall -Wpedantic -Wno-unused-variable -Wno-unused-function -rdynamic -Wno-array-bounds -Wno-deprecated-declarations -Wno-unknown-pragmas -Wno-restrict -Wno-stringop-overread -Wno-stringop-overflow -Wno-dangling-reference -fexceptions -frtti")
+string(APPEND DYNAMIC_LIBRARY_MGMT_CXX_FLAGS " -Werror -Wextra -Wall -Wpedantic")
+string(APPEND DYNAMIC_LIBRARY_MGMT_CXX_FLAGS " -Wno-unused-variable -Wno-unused-function")
+string(APPEND DYNAMIC_LIBRARY_MGMT_CXX_FLAGS " -rdynamic -Wno-array-bounds -Wno-deprecated-declarations")
+string(APPEND DYNAMIC_LIBRARY_MGMT_CXX_FLAGS " -Wno-unknown-pragmas -Wno-restrict -Wno-stringop-overread")
+string(APPEND DYNAMIC_LIBRARY_MGMT_CXX_FLAGS " -Wno-stringop-overflow -Wno-dangling-reference -fexceptions -frtti")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DYNAMIC_LIBRARY_MGMT_CXX_FLAGS}")
+
+## 
+# Set output directories for all targets during build
+# "${CMAKE_BINARY_DIR}/bin"
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${AMD_APP_BASE_DIRECTORY}/lib")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${AMD_APP_BASE_DIRECTORY}/lib")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${AMD_APP_BASE_DIRECTORY}/lib")
+set(AMD_APP_BUILD_LIB_DIRECTORY "${AMD_APP_BASE_DIRECTORY}/lib")
+file(MAKE_DIRECTORY ${AMD_APP_BUILD_LIB_DIRECTORY})
+set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES SOVERSION ${AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL})
 set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES COMPILE_FLAGS ${DYNAMIC_LIBRARY_MGMT_CXX_FLAGS})
-set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${AMD_APP_BUILD_LIB_DIRECTORY})
 set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES PREFIX "")
+
+# 
+## Install target: Provided by top CMakeLists.txt, so we can use a 'dynamic_install()' function
+#install(TARGETS ${AMD_TARGET_LIBNAME} LIBRARY DESTINATION lib)
+#install(TARGETS ${AMD_TARGET_LIBNAME} RUNTIME DESTINATION bin)
+
+## End of CMakeLists.txt
+

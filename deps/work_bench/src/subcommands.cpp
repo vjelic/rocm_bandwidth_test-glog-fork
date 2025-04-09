@@ -120,13 +120,17 @@ auto register_subcommand(const std::string& cmd_name, const ForwardCommandHandle
 }
 
 
-auto process_args(const WordList_t& args) -> void
+/*
+ *  Process the arguments and run the subcommands, for the subcommands that registered with 'global_subcommands',
+ *  by using plugin management and AMD_WORK_BENCH_PLUGIN_SUBCOMMAND().
+ */
+auto process_args(const WordList_t& args) -> int32_t
 {
     /*
      * If there are no arguments, there is nothing to do.
      */
     if (args.empty()) {
-        return;
+        return (EXIT_FAILURE);
     }
 
     auto args_itr = args.begin();
@@ -140,7 +144,7 @@ auto process_args(const WordList_t& args) -> void
     if (current_subcommand.has_value()) {
         args_itr++;
     } else {
-        current_subcommand = find_subcommand("--builtin-help");
+        current_subcommand = find_subcommand("--help");
     }
 
     /*
@@ -162,14 +166,15 @@ auto process_args(const WordList_t& args) -> void
         } else if (current_subcommand.has_value()) {
             // Save the arguments for the current subcommand
             current_subcommand_args.push_back(arg_str);
+            ++args_itr;
         } else {
             // Get next subcommand from here
             current_subcommand = find_subcommand(arg_str);
             if (!current_subcommand.has_value()) {
                 wb_logger::loginfo(LogLevel::LOGGER_ERROR, "Subcommand: {} unknown.", arg_str);
-                std::exit(EXIT_FAILURE);
+                return (EXIT_FAILURE);
             }
-            args_itr++;
+            ++args_itr;
         }
     }
 
@@ -188,8 +193,10 @@ auto process_args(const WordList_t& args) -> void
      * If not main instance, commands were forwarded to a different instance.
      */
     if (!wb_api_system::is_main_instance()) {
-        std::exit(EXIT_SUCCESS);
+        return (EXIT_SUCCESS);
     }
+
+    return (EXIT_SUCCESS);
 }
 
 

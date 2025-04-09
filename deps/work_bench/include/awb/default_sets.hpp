@@ -149,15 +149,11 @@ class XDGBaseDirectories_t
 
             m_home_directory = FSPath_t{home_env};
             m_current_work_directory = FSPath_t{curr_work_env};
-            m_data_directories =
-                get_paths_from_env_or_default("XDG_DATA_DIRS", FSPathList_t{"/usr/local/share", "/usr/share"});
-            m_data_home_directory =
-                get_absolute_path_from_env_or_default("XDG_DATA_HOME", m_home_directory / ".local" / "share");
-            m_config_home_directory =
-                get_absolute_path_from_env_or_default("XDG_CONFIG_HOME", m_home_directory / ".config");
+            m_data_directories = get_paths_from_env_or_default("XDG_DATA_DIRS", FSPathList_t{"/usr/local/share", "/usr/share"});
+            m_data_home_directory = get_absolute_path_from_env_or_default("XDG_DATA_HOME", m_home_directory / ".local" / "share");
+            m_config_home_directory = get_absolute_path_from_env_or_default("XDG_CONFIG_HOME", m_home_directory / ".config");
             m_config_directories = get_paths_from_env_or_default("XDG_CONFIG_DIRS", FSPathList_t{"/etc/xdg"});
-            m_cache_home_directory =
-                get_absolute_path_from_env_or_default("XDG_CACHE_HOME", m_home_directory / ".cache");
+            m_cache_home_directory = get_absolute_path_from_env_or_default("XDG_CACHE_HOME", m_home_directory / ".cache");
 
             set_runtime_directory();
         }
@@ -226,8 +222,7 @@ class XDGBaseDirectories_t
                     if (((runtime_directory_perms & fs_perms::owner_all) == fs_perms::none) ||
                         ((runtime_directory_perms & fs_perms::group_all) != fs_perms::none) ||
                         ((runtime_directory_perms & fs_perms::others_all) != fs_perms::none)) {
-                        throw XDGBaseDirectoryException_t(
-                            "$XDG_RUNTIME_DIR does not have the required permission '0700'");
+                        throw XDGBaseDirectoryException_t("$XDG_RUNTIME_DIR does not have the required permission '0700'");
                     }
                     m_runtime_directory.emplace(runtime_directory);
                 }
@@ -256,10 +251,10 @@ class XDGBaseDirectories_t
                 return std::move(default_paths);
             }
 
-            std::string paths{env_var};
-            FSPathList_t directory_list{};
-            size_t start = 0;
-            size_t pos = 0;
+            auto paths = std::string{env_var};
+            auto directory_list = FSPathList_t{};
+            auto start = size_t(0);
+            auto pos = size_t(0);
 
             /*
              *  TODO: Redo this part with std::ranges::split_view
@@ -349,6 +344,7 @@ namespace amd_work_bench::paths
 
 using FSPath_t = std::filesystem::path;
 using FSPathList_t = std::vector<std::filesystem::path>;
+using FSPathSet_t = std::set<std::filesystem::path>;
 
 
 namespace details
@@ -423,12 +419,19 @@ class DataPath_t : public DefaultPath_t
 
 }    // namespace details
 
+static const auto kDEFAULT_CONFIG_DIRECTORY_NAME = std::string("config");
+static const auto kDEFAULT_LOG_DIRECTORY_NAME = std::string("log");
+static const auto kDEFAULT_BACKUP_DIRECTORY_NAME = std::string("backups");
+static const auto kDEFAULT_PLUGIN_DIRECTORY_NAME = std::string("plugins");
+static const auto kDEFAULT_LIBRARY_DIRECTORY_NAME = std::string("libs");
+static const auto kDEFAULT_INFO_PATH_STR = std::string("rocm-bandwidth-info");
+static const auto KDEFAULT_INFO_BASE_PATH = FSPath_t(kDEFAULT_INFO_PATH_STR);
 
-static const inline details::ConfigPath_t kCONFIG_PATH("/work_bench_info/config");
-static const inline details::DataPath_t kDATA_PATH("/work_bench_info/log");
-static const inline details::DataPath_t kBACKUP_PATH("/work_bench_info/backups");
-static const inline details::PluginPath_t kPLUGIN_PATH("plugins");
-static const inline details::PluginPath_t kLIBRARY_PATH("libs");
+static const inline details::ConfigPath_t kCONFIG_PATH(KDEFAULT_INFO_BASE_PATH / kDEFAULT_CONFIG_DIRECTORY_NAME);
+static const inline details::DataPath_t kDATA_PATH(KDEFAULT_INFO_BASE_PATH / kDEFAULT_LOG_DIRECTORY_NAME);
+static const inline details::DataPath_t kBACKUP_PATH(KDEFAULT_INFO_BASE_PATH / kDEFAULT_BACKUP_DIRECTORY_NAME);
+static const inline details::PluginPath_t kPLUGIN_PATH(kDEFAULT_PLUGIN_DIRECTORY_NAME);
+static const inline details::PluginPath_t kLIBRARY_PATH(kDEFAULT_LIBRARY_DIRECTORY_NAME);
 
 static const inline std::vector<const details::DefaultPath_t*> kALL_DEFAULT_PATHS = {
     &kCONFIG_PATH, &kDATA_PATH, &kPLUGIN_PATH, &kLIBRARY_PATH};
@@ -436,8 +439,8 @@ static const inline std::vector<const details::DefaultPath_t*> kALL_DEFAULT_PATH
 //     kCONFIG_PATH, kPLUGIN_PATH, kDATA_PATH};
 //
 
-FSPathList_t get_config_paths();
-
+auto get_config_paths() -> FSPathList_t;
+auto get_plugin_paths() -> FSPathList_t;
 
 }    // namespace amd_work_bench::paths
 

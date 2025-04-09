@@ -283,6 +283,12 @@ auto startup_native() -> void
 }
 
 
+auto get_env_var(const std::string& var_name) -> std::optional<std::string>
+{
+    return wb_utils::get_env_var(var_name);
+}
+
+
 auto get_kernel_version() -> std::string
 {
     auto os_info = std::string(wb_literals::kTEXT_UNKNOWN);

@@ -83,9 +83,15 @@ SubCmdType_t::Option},
 };
 */
 
+AMD_WORK_BENCH_PLUGIN_SUBCOMMAND(){
+    {"builtin-help",   "", "Print help about this command", builtin_plugin::command_help_handler, SubCmdType_t::Option},
+    {"pcie-info",      "", "Display PCIE Print Spec info help about this command", builtin_plugin::command_pcie_info_handler, SubCmdType_t::Option},
+
+};
+
 AMD_WORK_BENCH_PLUGIN_SETUP("Built-in",
                             "Linux System Tools Team (MLSE Linux) @AMD",
-                            "Builtin: options for AMD Work Bench",
+                            "Builtin: options for AMD ROCm Bandwidth Test",
                             "1.0.0")
 {
     using namespace builtin_plugin;

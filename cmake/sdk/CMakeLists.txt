@@ -25,14 +25,15 @@
 #
 cmake_minimum_required(VERSION 3.20)
 
-set(AMD_TARGET_SDKNAME "amd_work_benchSDK")
-set(AMD_TARGET_LIBNAME "libwork_bench")
+set(AMD_MAIN_TARGET_NAME "rocm_bandwidth_test")
+set(AMD_TARGET_SDKNAME "rocm_bandwidth_testSDK")
+set(AMD_TARGET_LIBNAME "libamd_work_bench")
 
 project(${AMD_TARGET_SDKNAME}
     VERSION "0.0.1"
     LANGUAGES CXX C
-    DESCRIPTION "amd-work-bench SDK Library"
-    HOMEPAGE_URL "https://github.amd.com/LSTT/amd-work-bench"
+    DESCRIPTION "rocm_bandwidth_test SDK Library"
+    HOMEPAGE_URL "https://github.com/ROCm/rocm_bandwidth_test"
 )
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
@@ -44,7 +45,7 @@ include(build_plugin_utils)
 
 set(AMD_WORK_BENCH_EXTERNAL_PLUGIN_BUILD ON PARENT_SCOPE)
 set(AMD_WORK_BENCH_EXTERNAL_PLUGIN_BUILD ON)
-add_custom_target(amd_work_bench_all)
+add_custom_target("${AMD_MAIN_TARGET_NAME}_all")
 
 # Add the subdirectories when they exist
 function(add_existing_subdirectory directory_name)
@@ -81,8 +82,9 @@ set(CURL_LIBRARIES ${CURL_LIBRARIES} PARENT_SCOPE)
 
 add_subdirectory(deps/work_bench)
 
-message(WARNING ">> AMD_TARGET_LIBNAME: ${AMD_TARGET_LIBNAME}")
-
 set_target_properties(${AMD_TARGET_LIBNAME} PROPERTIES
     IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/../${AMD_TARGET_LIBNAME}.so"
     INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/deps/work_bench/include")
+
+
+## End of CMakeLists.txt

@@ -32,8 +32,8 @@ if(WIN32)
 endif()
 
 # Set the project name
-set(AMD_TARGET_NAME "amd_work_bench")
-set(AMD_TARGET_LIBNAME "libwork_bench")
+set(AMD_TARGET_NAME "rocm_bandwidth_test")
+set(AMD_TARGET_LIBNAME "libamd_work_bench")
 set(AMD_PROJECT_NAME "awb_main")
 
 project(${AMD_PROJECT_NAME})
@@ -67,7 +67,7 @@ target_include_directories(${AMD_PROJECT_NAME} PUBLIC include ${CLI11_LIBRARIES}
 
 setup_compiler_flags(${AMD_PROJECT_NAME})
 setup_compiler_flags(${AMD_TARGET_LIBNAME})
-add_dependencies(amd_work_bench_all ${AMD_PROJECT_NAME})
+add_dependencies(${AMD_TARGET_NAME}_all ${AMD_PROJECT_NAME})
 
 set_target_properties(${AMD_PROJECT_NAME} PROPERTIES
     OUTPUT_NAME ${AMD_WORK_BENCH_APPLICATION_NAME}
@@ -79,3 +79,6 @@ target_compile_definitions(${AMD_PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${AMD_PROJECT_NAME} PRIVATE ${AMD_TARGET_LIBNAME} ${BACKTRACE_LIBRARIES} pthread ${CLI11_LIBRARIES})
+
+
+## End of CMakeLists.txt

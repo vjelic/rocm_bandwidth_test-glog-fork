@@ -43,33 +43,20 @@
  * Author(s):   Daniel Oliveira <daniel.oliveira@amd.com>
  *
  *
- * Description: cmdline_iface.hpp
+ * Description: gpu_iface.cpp
  *
  */
 
-#if !defined(AMD_WORK_BENCH_CMDLINE_IFACE_HPP)
-#define AMD_WORK_BENCH_CMDLINE_IFACE_HPP
 
+#include "gpu_iface.hpp"
+
+#include <memory>
 #include <string>
 #include <vector>
 
 
-namespace amd_work_bench::plugin::builtin
+namespace amd_work_bench::gpu_iface
 {
 
-using WordList_t = std::vector<std::string>;
 
-auto command_register_forwarder() -> void;
-auto command_version_handler(const WordList_t& args) -> void;
-auto command_help_handler(const WordList_t& args) -> void;
-auto command_list_plugins_handler(const WordList_t& args) -> void;
-auto command_verbose_handler(const WordList_t& args) -> void;
-auto command_open_handler(const WordList_t& args) -> void;
-auto command_pcie_info_handler(const WordList_t& args) -> void;
-
-// This is a dummy handler that does nothing
-auto command_none_handler(const WordList_t& args) -> void;
-
-}    // namespace amd_work_bench::plugin::builtin
-
-#endif    //-- AMD_WORK_BENCH_CMDLINE_IFACE_HPP
+}    // namespace amd_work_bench::gpu_iface

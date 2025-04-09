@@ -1,14 +1,14 @@
-# AMD Work Bench (RBT-Next Generation)
+# ROCm Bandwidth Test (RBT-Next Generation, RBT-NG)
 [![AMD](https://img.shields.io/badge/AMD-%23000000.svg?style=for-the-badge&logo=amd&logoColor=white)](https://www.amd.com)
 [![Language](https://img.shields.io/badge/Language-C++-blue.svg)](https://isocpp.org/) 
 [![Standard](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B#Standardization) 
 [![Standard](https://img.shields.io/badge/C-23-purple.svg)](https://en.wikipedia.org/wiki/C23_(C_standard_revision))
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) 
 <!--- 
-[![Build](https://github.amd.com/LSTT/amd-work-bench/actions/workflows/unit-test.yml/badge.svg)](https://github.amd.com/LSTT/amd-work-bench/actions/workflows/unit-test.yml)
+[![Build](https://github.com/AMD-ROCm-Internal/rocm-bandwidth-test/actions/workflows/unit-test.yml/badge.svg)](https://github.com/AMD-ROCm-Internal/rocm-bandwidth-test/actions/workflows/unit-test.yml)
 -->
 
-**AMD Work Bench** is the next generation of the ROCm Bandwidth Test, designed to measure the bandwidth between CPU and GPU devices on AMD platforms. This version has been completely rewritten with a focus on modularity and extensibility through a plugin-based architecture.
+**RBT-NG** is the next generation of the ROCm Bandwidth Test, designed to measure the bandwidth between CPU and GPU devices on AMD platforms. This version has been completely rewritten with a focus on modularity and extensibility through a plugin-based architecture.
 
 >[!NOTE]
 >This project is a successor to [RBT](https://rocm.docs.amd.com/projects/rocm_bandwidth_test/en/latest/index.html)
@@ -16,9 +16,9 @@
 
 ## Overview
 
-AMD Work Bench leverages [TransferBench (TB)](https://github.com/ROCm/TransferBench) as its core engine for benchmarking data transfers. This approach allows for more flexible and efficient testing scenarios.
+RBT-NG leverages [TransferBench (TB)](https://github.com/ROCm/TransferBench) as its core engine for benchmarking data transfers. This approach allows for more flexible and efficient testing scenarios.
 
-- **Plugin Architecture:** Easily extend the functionality of AMD Work Bench with custom plugins.
+- **Plugin Architecture:** Easily extend the functionality of RBT-NG with custom plugins.
 - **Modular Design:** Separate concerns for better maintenance and development.
 - **Enhanced Performance:** Improved algorithms and integration with TransferBench for precise measurements.
 
@@ -45,8 +45,8 @@ See the [full library and API documentation](https://rocm.docs.amd.com/en/latest
 See [Build from Source](#Build_from_Source)
 
 ```bash
-git clone https://github.amd.com/LSTT/amd-work-bench.git
-cd amd-work-bench
+git clone https://github.com/AMD-ROCm-Internal/rocm-bandwidth-test
+cd rocm-bandwidth-test
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug|Release
 make
@@ -54,10 +54,10 @@ make
 
 ## Usage
 
-AMD Work Bench can be run with various options to customize the test:
+RBT-NG can be run with various options to customize the test:
 ```bash
-./amd_work_bench [-h|--help] [-v|--version] 
-./amd_work_bench plugin [--help] 
+./rocm_bandwidth_test [-h|--help] [-v|--version] 
+./rocm_bandwidth_test plugin [--help] 
 ```
 
 - --help: Displays help information.
@@ -67,13 +67,14 @@ AMD Work Bench can be run with various options to customize the test:
 ### Example
 
 ```bash
-./amd_work_bench --plugin -r my_custom_plugin
+./rocm_bandwidth_test --plugin -r my_custom_plugin
+./rocm_bandwidth_test run my_custom_plugin
 
 ``` 
 
 ## Plugins
 
-Plugins are the heart of AMD Work Bench's extensibility. Here's how you can create or use them:
+Plugins are the heart of RBT-NG's extensibility. Here's how you can create or use them:
 
 - Creating Plugins: Follow the `Plugin Development Guide`.
 - Using Existing Plugins: Check the `plugins` directory for available options.
@@ -89,7 +90,7 @@ Plugins are the heart of AMD Work Bench's extensibility. Here's how you can crea
 
 We welcome contributions! Please read our [CONTRIBUTING](./CONTRIBUTING.md) for details on how to get started.
 
-Join the community by reporting issues or asking questions via [GitHub issues](https://github.amd.com/LSTT/amd-work-bench.git/issues). All feedback and proposals are welcome.
+Join the community by reporting issues or asking questions via [GitHub issues](https://github.com/AMD-ROCm-Internal/rocm-bandwidth-test/issues). All feedback and proposals are welcome.
 
 Please review our [SECURITY](./SECURITY.md) policy for information on reporting security issues.
 

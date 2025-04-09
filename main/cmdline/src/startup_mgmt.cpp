@@ -241,7 +241,7 @@ auto StartupCommandLine_t::run_async_tasks() -> std::future<bool>
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto task_in_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-        wb_logger::loginfo(LogLevel::LOGGER_INFO, "Startup: amd_work_bench startup finished in {} ms.", task_in_ms);
+        wb_logger::loginfo(LogLevel::LOGGER_INFO, "Startup: rocm_bandwidth_test startup finished in {} ms.", task_in_ms);
 
         // Is there any progress step left? Small extra delay to show 100% progress
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -332,7 +332,7 @@ auto run_work_bench() -> u32_t
 auto show_help() -> void
 {
     const auto help_message_build_info =
-        amd_fmt::format("AMD Work Bench: \n -> version: {} \n -> [Commit: {} / Branch: {} / Build Type: {}]",
+        amd_fmt::format("AMD ROCm Bandwidth Test: \n -> version: {} \n -> [Commit: {} / Branch: {} / Build Type: {}]",
                         wb_api_system::get_work_bench_version(),
                         wb_api_system::get_work_bench_commit_hash(),
                         wb_api_system::get_work_bench_commit_branch(),
@@ -343,15 +343,15 @@ auto show_help() -> void
                                                        wb_api_system::get_os_distro_info());
 
     auto help_message = R"(
-        Help: AMD Work Bench Command Line Interface
-        Usage: amd_work_bench [options] 
+        Help: AMD ROCm Bandwidth Test Command Line Interface
+        Usage: rocm_bandwidth_test [options]
 
         Options:
             -h, --help        Display the main help screen
             -v, --version     Print version information
             -d, --debug       Run in debug mode
 
-        Report bugs to: <amd_work_bench@amd.com>
+        Report bugs to: <rocm_bandwidth_test@amd.com>
     )";
 
     std::cout << help_message_build_info << "\n";
@@ -511,7 +511,8 @@ auto load_plugins() -> bool
     // clang-format off
     //  Load the plugins
     #if !defined(AMD_APP_STATIC_LINK_PLUGINS)
-        for (const auto& plugin_path : paths::kPLUGIN_PATH.read()) {
+        //kPLUGIN_PATH.read()
+        for (const auto& plugin_path : paths::kPLUGIN_PATH.all()) {
             PluginManagement_t::plugin_load_path_add(plugin_path);
         }
 
@@ -544,7 +545,7 @@ auto load_plugins() -> bool
             return true;
         }
 
-        // Is the plugin in the same diretory tree as the executable?
+        // Is the plugin in the same directory tree as the executable?
         return !std_fs::relative(plugin.plugin_get_library_path(), executable_path->parent_path()).string().starts_with("..");
     };
 

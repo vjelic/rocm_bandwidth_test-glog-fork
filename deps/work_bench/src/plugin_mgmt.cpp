@@ -447,7 +447,7 @@ auto PluginManagement_t::plugin_load(const FSPath_t& plugin_path) -> bool
          *  Load the libraries.
          */
         for (const auto& plugin_instance : std_fs::directory_iterator(plugin_path)) {
-            if (plugin_instance.is_regular_file() && plugin_instance.path().extension() == ".amdlplug") {
+            if (plugin_instance.is_regular_file() && plugin_instance.path().extension() == kLIBRARY_PLUGIN_EXTENSION) {
                 if (!is_plugin_loaded(plugin_instance.path())) {
                     plugin_get_all_mutable().emplace_back(plugin_instance.path());
                 }
@@ -458,7 +458,7 @@ auto PluginManagement_t::plugin_load(const FSPath_t& plugin_path) -> bool
          *  Load the normal plugins.
          */
         for (const auto& plugin_instance : std_fs::directory_iterator(plugin_path)) {
-            if (plugin_instance.is_regular_file() && plugin_instance.path().extension() == ".amdplug") {
+            if (plugin_instance.is_regular_file() && plugin_instance.path().extension() == kREGULAR_PLUGIN_EXTENSION) {
                 if (!is_plugin_loaded(plugin_instance.path())) {
                     plugin_get_all_mutable().emplace_back(plugin_instance.path());
                 }
@@ -484,7 +484,7 @@ auto PluginManagement_t::library_load() -> bool
     wb_logger::loginfo(LogLevel::LOGGER_WARN, "PluginManagement: {} ", __PRETTY_FUNCTION__);
     auto is_load_successful(true);
     for (const auto& plugin_path : paths::kLIBRARY_PATH.read()) {
-        wb_logger::loginfo(LogLevel::LOGGER_WARN, "    amd_work_bench: {} ", plugin_path.string());
+        wb_logger::loginfo(LogLevel::LOGGER_WARN, "    rocm_bandwidth_test: {} ", plugin_path.string());
         is_load_successful = (library_load(plugin_path) && is_load_successful);
     }
 
@@ -494,6 +494,8 @@ auto PluginManagement_t::library_load() -> bool
 
 /*
  *  Note:   These should be coming from /lib/ directory (*.so*)
+ *  TODO:   We might need to create a list of the extensions we want to load.
+ *          For now, we are only loading the .so files.
  */
 auto PluginManagement_t::library_load(const FSPath_t& library_path) -> bool
 {

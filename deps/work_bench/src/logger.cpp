@@ -79,6 +79,8 @@ namespace details
 
 auto is_developer_logging{false};
 auto is_logging_suspended{false};
+auto is_logging_enabled{false};
+
 
 auto compose_logger_name_info(const std::string& logger_name, LoggerNameInfo_t logger_name_type) -> std::string
 {
@@ -198,6 +200,12 @@ auto disable_developer_logger() -> void
 }
 
 
+auto is_logger_enabled() -> bool
+{
+    return details::is_logging_enabled;
+}
+
+
 auto suspend_logging() -> void
 {
     if (!details::is_logging_suspended) {
@@ -266,6 +274,24 @@ auto is_global_framework_logging() -> bool
 {
     return ((details::get_default_logger() != nullptr) && (!details::get_default_logger()->sinks().empty()) &&
             (!details::get_logger_name().empty()) && (!details::get_logger_file_path().empty()));
+}
+
+auto is_global_framework_logging_enabled() -> bool
+{
+    details::is_logging_enabled = false;
+
+    // clang-format off
+    #if defined(DEBUG) 
+        details::is_logging_enabled = true;
+    #endif
+    if (!details::is_logging_enabled) { 
+        if (auto is_debug_enabled = wb_linux::get_env_var(kLOGGER_VAR_DEBUG_ENABLE); is_debug_enabled.has_value()) {
+            details::is_logging_enabled = true;
+        }
+    }
+    // clang-format on
+
+    return details::is_logging_enabled;
 }
 
 }    // namespace amd_work_bench::logger

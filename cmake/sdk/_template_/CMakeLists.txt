@@ -41,7 +41,7 @@ project(AWBPluginName)
 if (NOT EXISTS $ENV{AMD_WORK_BENCH_SDK_PATH})
     message(FATAL_ERROR "The AMD_WORK_BENCH_SDK_PATH environment variable is not set")
 endif()
-add_subdirectory($ENV{AMD_WORK_BENCH_SDK_PATH} amd_work_benchSDK)
+add_subdirectory($ENV{AMD_WORK_BENCH_SDK_PATH} rocm_bandwidth_testSDK)
 
 #
 # NOTE(s):
@@ -52,8 +52,8 @@ add_subdirectory($ENV{AMD_WORK_BENCH_SDK_PATH} amd_work_benchSDK)
 #       In this case, we are defining a plugin called 'sample_plugin' with two source files 'sample_plugin1.cpp' and 'sample_plugin2.cpp',
 #       located in the 'src' directory, and includes files/headers located in the 'include' directory. The plugin is linked against the 'jthread' library,
 #       which is part of the C++20 standard, and required for the plugin to work.
-#       By default the plugin has access to the 'libwork_bench.so' library, which provides the necessary functions to interact with the AMD-Work-Bench, as
-#       well as 'json', 'spdlog', which are not part of the C++20 standard, but it can be linked against any other library.
+#       By default the plugin has access to the 'libamd_work_bench.so' library, which provides the necessary functions to interact with the AMD-Work-Bench, 
+#       as well as 'json', 'spdlog', which are not part of the C++20 standard, but it can be linked against any other library.
 #
 add_amd_work_bench_plugin(
     NAME
@@ -69,3 +69,6 @@ add_amd_work_bench_plugin(
     LIBRARIES
         ${JTHREAD_LIBRARIES}
 )
+
+
+## End of CMakeLists.txt

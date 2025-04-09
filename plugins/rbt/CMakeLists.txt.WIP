@@ -1,0 +1,102 @@
+# MIT License
+#
+# Copyright (c) 2023 Advanced Micro Devices, Inc. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+#
+
+cmake_minimum_required(VERSION 3.20)
+
+include(ExternalProject)
+if (NOT USE_SYSTEM_RBT_ENGINE)
+    message(WARNING ">> Building: ROCm Bandwidth Test (RBT) as a shared library (plugin)...")
+    message(STATUS "  >> Build type: '${AMD_PROJECT_BUILD_TYPE}' v:${AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL}")
+
+    # ROCm paths
+    set(ROCM_PATH "/opt/rocm")
+    set(ROCM_INCLUDE_DIRS ${ROCM_PATH}/include ${ROCM_PATH}/include/hsa ${ROCM_PATH}/include/hip)
+    set(ROCM_LIBRARY_DIRS ${ROCM_PATH}/lib)
+
+    # Set the include directories
+    set(AMD_WORK_BENCH_COMMON_INCLUDE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../common/)
+    set(RBT_PLUGIN_INCLUDE_DIRS include ${ROCM_INCLUDE_DIRS})
+else()
+    find_package(ROCmCMakeBuildTools REQUIRED)
+    find_package(hsa-runtime64 REQUIRED)
+    find_package(numa REQUIRED)
+endif()
+
+ExternalProject_Add( 
+    TB_ENGINE_LIBRARY
+    #PREFIX "lib"
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../common/tb_engine
+    BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../common/tb_engine/build
+    INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../common/tb_engine/deps
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_SOURCE_DIR}/../common/tb_engine/deps 
+               -DCMAKE_BUILD_TYPE=${AMD_PROJECT_BUILD_TYPE} 
+               -DBUILD_INTERNAL_BINARY_VERSION=${AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL}
+)
+add_library(tb_engine SHARED IMPORTED)
+set_target_properties(tb_engine PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../common/tb_engine/deps/lib/libamd_tb_engine.so)
+
+
+##
+if(NOT USE_LOCAL_CLI11)
+    #add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../deps/3rd_party/CLI11 ${CMAKE_CURRENT_BINARY_DIR}/../../deps/3rd_party/CLI11)
+    set(CLI11_LIBRARIES CLI11::CLI11)
+    set(CLI11_INCLUDE_DIRS)
+else()
+    find_package(CLI11 CONFIG QUIT)
+endif()
+
+##
+# Add the plugin
+include(build_plugin_utils)
+set(AMD_WORK_BENCH_PLUGIN_NAME_BUILD "rbt")
+add_amd_work_bench_plugin(
+    NAME
+        ${AMD_WORK_BENCH_PLUGIN_NAME_BUILD}
+
+    SOURCES
+        src/plugin_rocm_bandwidth_test.cpp
+        src/view_rocm_bandwidth_test.cpp
+
+        
+    INCLUDES
+        include
+        ${AMD_WORK_BENCH_COMMON_INCLUDE_DIRECTORY}
+        ${CLI11_LIBRARIES}
+        ${RBT_PLUGIN_INCLUDE_DIRS}
+
+
+    LIBRARIES
+        ${JTHREAD_LIBRARIES}
+        ${CLI11_INCLUDE_DIRS}
+        ${ROCM_LIBRARY_DIRS}/libhsa-runtime64.so
+        pthread
+)
+
+## Add required libraries
+add_definitions(-DAMD_LEGACY_PLUGIN_VIEW)
+add_dependencies(${AMD_WORK_BENCH_PLUGIN_NAME_BUILD} TB_ENGINE_LIBRARY)
+target_link_libraries(${AMD_WORK_BENCH_PLUGIN_NAME_BUILD} PRIVATE tb_engine)
+
+
+## End of CMakeLists.txt

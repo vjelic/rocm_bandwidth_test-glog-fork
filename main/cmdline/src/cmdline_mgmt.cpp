@@ -377,10 +377,11 @@ void add_plugin_subcommand_handler(CLI::App& app, const details::PluginHandlerDa
 }
 
 
-// auto execute_command_line_interface(WordList_t args) -> i32_t
 auto execute_command_line_interface(int argc, char** argv) -> i32_t
 {
-    auto work_bench_cli_app = CLI::App{"AMD Work Bench: Command Line Interface"};
+    auto work_bench_cli_app = CLI::App{"AMD ROCm Bandwidth Test: Command Line Interface"};
+    work_bench_cli_app.add_option("--builtin-help", "Print help for builtin plugin/subcommands");
+    work_bench_cli_app.add_option("--version", "Print the utility/framework version");
     work_bench_cli_app.require_subcommand();
 
     //  Skip the executable path (1st argument) and build the list of arguments
@@ -402,7 +403,7 @@ auto execute_command_line_interface(int argc, char** argv) -> i32_t
             return (EXIT_FAILURE);
         } else if ((subcommand_passed == "-v") || (subcommand_passed == "--version")) {
             const auto help_message_build_info =
-                amd_fmt::format("AMD Work Bench: \n -> version: {} \n -> [Commit: {} / Branch: {} / Build Type: {}]",
+                amd_fmt::format("AMD ROCm Bandwidth Test: \n -> version: {} \n -> [Commit: {} / Branch: {} / Build Type: {}]",
                                 wb_api_system::get_work_bench_version(),
                                 wb_api_system::get_work_bench_commit_hash(),
                                 wb_api_system::get_work_bench_commit_branch(),
@@ -441,7 +442,7 @@ auto execute_command_line_interface(int argc, char** argv) -> i32_t
         //     exc.what());
         // std::cout << parse_error_message << "\n";
         //  return (EXIT_FAILURE);
-        return work_bench_cli_app.exit(exc);    //, std::cout, std::cout);
+        return work_bench_cli_app.exit(exc);
     }
 
     return (EXIT_SUCCESS);
@@ -491,16 +492,21 @@ auto run_command_line(int argc, char** argv) -> void
 
     //  Load all plugins without initializing them
     PluginManagement_t::library_load();
-    for (const auto& plugin_dir : paths::kPLUGIN_PATH.read()) {
+    // kPLUGIN_PATH.read()
+    for (const auto& plugin_dir : paths::kPLUGIN_PATH.all()) {
         PluginManagement_t::plugin_load(plugin_dir);
     }
 
-    //  Arg parser for the built-in subcommands
-    // wb_subcommands::process_args(args);
-    //  Skip the executable path (1st argument) and build the list of arguments
-    // WordList_t args = {(argv + 1), (argv + argc)};
-    // cmdline_subcommands::execute_command_line_interface(args);
-    cmdline_subcommands::execute_command_line_interface(argc, argv);
+    /*  Lets 1st check the builtin subcommands
+     *  Skip the executable path (1st argument) and build the list of arguments
+     *  Arg parser for the builtin subcommands
+     */
+    WordList_t args = {(argv + 1), (argv + argc)};
+    auto builtin_subcommand_result = wb_subcommands::process_args(args);
+    //  Execute the command line interface parse, if builtin subcommand was not found
+    if (builtin_subcommand_result != EXIT_SUCCESS) {
+        cmdline_subcommands::execute_command_line_interface(argc, argv);
+    }
 
     //  Unload plugin
     PluginManagement_t::plugin_unload();

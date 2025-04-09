@@ -34,7 +34,7 @@ endif()
 # Set the project name
 set(AMD_PROJECT_NAME "plugins_test")
 set(AMD_PARENT_PROJECT_NAME "tests_common")
-set(AMD_TARGET_LIBNAME "libwork_bench")
+set(AMD_TARGET_LIBNAME "libamd_work_bench")
 project(${AMD_PROJECT_NAME})
 
 add_executable(${AMD_PROJECT_NAME} src/plugin_tests.cpp)
@@ -46,3 +46,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${AMD_TARGET_LIBNAME} ${AMD_PARENT
 
 set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 add_dependencies(unit_tests ${PROJECT_NAME})
+
+
+## End of CMakeLists.txt
+

@@ -82,7 +82,7 @@ namespace amd_work_bench::utils
 /*
  *  Note:   Additional utility functions defined down here.
  */
-std::optional<std::string> get_env_var(const std::string& var_name);
+auto get_env_var(const std::string& var_name) -> std::optional<std::string>;
 
 auto set_env_var(const std::string& var_name, const std::string& var_value, bool is_overwrite) -> i32_t;
 

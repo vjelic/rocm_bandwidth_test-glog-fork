@@ -29,9 +29,11 @@ cmake_minimum_required(VERSION 3.20)
 #         LIBRARIES LLVMDemangle
 include(build_plugin_utils)
 
+## Add the plugin
+set(AMD_WORK_BENCH_PLUGIN_NAME_BUILD "builtin")
 add_amd_work_bench_plugin(
     NAME 
-        builtin
+        ${AMD_WORK_BENCH_PLUGIN_NAME_BUILD}
 
     SOURCES
         src/plugin_builtin.cpp
@@ -48,3 +50,6 @@ add_amd_work_bench_plugin(
         ${JTHREAD_LIBRARIES}
 
 )
+
+
+## End of CMakeLists.txt

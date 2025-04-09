@@ -69,7 +69,7 @@ using ForwardCommandHandler_t = std::function<void(const WordList_t&)>;
  */
 auto register_subcommand(const std::string& cmd_name, const ForwardCommandHandler_t& cmd_handler) -> void;
 auto forward_subcommand(const std::string& cmd_name, const WordList_t& args) -> void;
-auto process_args(const WordList_t& args) -> void;
+auto process_args(const WordList_t& args) -> int32_t;
 
 
 }    // namespace amd_work_bench::subcommands

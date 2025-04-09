@@ -62,6 +62,7 @@
 #include <algorithm>
 // #include <format>
 #include <iostream>
+#include <map>
 #include <ranges>
 #include <set>
 #include <utility>
@@ -108,8 +109,8 @@ auto command_help_handler(const WordList_t& args) -> void
     std::ignore = args;
 
     constexpr auto help_handler_message = R"(
-        Help: AMD Work Bench Command Line Interface
-        Usage: amd_work_bench [subcommand] [options] 
+        Help: AMD ROCm Bandwidth Test Command Line Interface
+        Usage: rocm_bandwidth_test [subcommand] [options]
 
         Available subcommands (builtin):
     )";
@@ -180,7 +181,7 @@ auto command_list_plugins_handler(const WordList_t& args) -> void
             PluginManagement_t::plugin_load_path_add(arg);
         }
     } else {
-        fmt::println("*Plugin(s) loaded:");
+        std::cout << "*Plugin(s) loaded:" << "\n";
         for (const auto& plugin : PluginManagement_t::plugin_get_all()) {
             if (plugin.is_library_plugin()) {
                 continue;
@@ -218,39 +219,6 @@ auto command_not_implemented_handler(const std::string& function_name, const Wor
     std::exit(EXIT_FAILURE);
 }
 
-/*
-auto command_plugin_handler(const WordList_t& args) -> void
-{
-    //  Note:   Remove this once it has been implemented.
-    return command_not_implemented_handler(__PRETTY_FUNCTION__, args);
-
-    WordList_t args_checked{args};
-    if (args_checked.empty()) {
-        args_checked.emplace_back("--help");
-    }
-}
-*/
-
-auto command_tb_handler(const WordList_t& args) -> void
-{
-    //  Note:   Remove this once it has been implemented.
-    return command_not_implemented_handler(__PRETTY_FUNCTION__, args);
-}
-
-
-auto command_rbt_handler(const WordList_t& args) -> void
-{
-    //  Note:   Remove this once it has been implemented.
-    return command_not_implemented_handler(__PRETTY_FUNCTION__, args);
-}
-
-
-auto command_ibt_handler(const WordList_t& args) -> void
-{
-    //  Note:   Remove this once it has been implemented.
-    return command_not_implemented_handler(__PRETTY_FUNCTION__, args);
-}
-
 
 auto command_register_forwarder() -> void
 {
@@ -275,11 +243,93 @@ auto command_verbose_handler(const WordList_t& args) -> void
 }
 
 
+auto command_pcie_info_handler(const WordList_t& args) -> void
+{
+    // Ignore the first argument, so we can silence the compiler warning
+    std::ignore = args;
+
+    //
+    struct PcieLinkInfo_t
+    {
+        public:
+            using PcieLinkThroughputList_t = std::map<u16_t, double>;
+            std::string m_revision{};
+            std::string m_year_introduced{};
+            double m_transfer_rate_per_lane_in_gb{0};
+            PcieLinkThroughputList_t m_pcie_link_throughput_list{};
+
+        private:
+    };
+    using PcieLinkInfoList_t = std::map<std::string, PcieLinkInfo_t>;
+
+    // clang-format off
+    static const auto kPcieLinkInfoList = PcieLinkInfoList_t{
+        {"1.0", {"1.0", "2003",          2.5, {{1,  0.250}, {2,  0.500}, {4,  1.000}, {8,   2.000}, {16,   4.000}}}},
+        {"2.0", {"2.0", "2007",          5.0, {{1,  0.500}, {2,  1.000}, {4,  2.000}, {8,   4.000}, {16,   8.000}}}},
+        {"3.0", {"3.0", "2010",          8.0, {{1,  0.985}, {2,  1.969}, {4,  3.938}, {8,   7.877}, {16,  15.754}}}},
+        {"4.0", {"4.0", "2017",         16.0, {{1,  1.969}, {2,  3.938}, {4,  7.877}, {8,  15.754}, {16,  31.508}}}},
+        {"5.0", {"5.0", "2019",         32.0, {{1,  3.938}, {2,  7.877}, {4, 15.754}, {8,  31.508}, {16,  63.015}}}},
+        {"6.0", {"6.0", "2022",         64.0, {{1,  7.563}, {2, 15.125}, {4, 30.250}, {8,  60.500}, {16, 121.000}}}},
+        {"7.0", {"7.0", "2025 (plan)", 128.0, {{1, 15.125}, {2, 30.250}, {4, 60.500}, {8, 121.000}, {16, 242.000}}}},
+    };
+    // clang-format on
+
+    // Build the information table
+    constexpr auto kEXTRA_SPACES = u32_t(4);
+    constexpr auto kREVISION_MAX_CHARS = u32_t(8);
+    constexpr auto kREVISION_YEAR_MAX_CHARS = u32_t(12);
+    constexpr auto kTRANSFER_RATE_MAX_CHARS = u32_t(8);
+    constexpr auto kTRANSFER_BANDWIDTH_MAX_CHARS = u32_t(30);
+
+    std::cout << "\n";
+    const auto pcie_info_help_message_header = amd_fmt::format("\t\033[1m {} \033[0m ", "* PCIe link performance *");
+    std::cout << pcie_info_help_message_header << "\n";
+    const auto pcie_info_help_message_title = amd_fmt::format(" {: <{}}  {: <{}}  {: <{}}  {: >{}} ",
+                                                              "Version",
+                                                              kREVISION_MAX_CHARS,
+                                                              "Introduced",
+                                                              kREVISION_YEAR_MAX_CHARS,
+                                                              "Transfer Rate",
+                                                              kTRANSFER_RATE_MAX_CHARS,
+                                                              "Bandwidth (GB/s)",
+                                                              (kTRANSFER_BANDWIDTH_MAX_CHARS + kEXTRA_SPACES));
+    std::cout << pcie_info_help_message_title << "\n";
+    for (const auto& [pcie_revision, pcie_link_info] : kPcieLinkInfoList) {
+        const auto pcie_info_help_message_line = amd_fmt::format(" {: ^{}}  {: ^{}}  {: >{}.3f} {} ",
+                                                                 pcie_revision,
+                                                                 kREVISION_MAX_CHARS,
+                                                                 pcie_link_info.m_year_introduced,
+                                                                 kREVISION_YEAR_MAX_CHARS,
+                                                                 pcie_link_info.m_transfer_rate_per_lane_in_gb,
+                                                                 kTRANSFER_RATE_MAX_CHARS,
+                                                                 "GT/s");
+
+        auto pcie_info_help_message_throughput_line = std::string{};
+        for (const auto& [pcie_link, pcie_throughput] : pcie_link_info.m_pcie_link_throughput_list) {
+            pcie_info_help_message_throughput_line += amd_fmt::format("  x{: <{}} {: >{}.3f}{}",
+                                                                      pcie_link,
+                                                                      kEXTRA_SPACES,
+                                                                      pcie_throughput,
+                                                                      kTRANSFER_RATE_MAX_CHARS,
+                                                                      " ");
+        }
+
+        const auto pcie_info_help_message_throughput_line_full =
+            (pcie_info_help_message_line + pcie_info_help_message_throughput_line);
+        std::cout << pcie_info_help_message_throughput_line_full << "\n";
+    }
+
+    const auto pcie_info_help_message_note =
+        amd_fmt::format("\t\033[1m*Reference:\033[0m \033[2;3m{}\033[0m", "https://en.wikipedia.org/wiki/PCI_Express");
+    std::cout << pcie_info_help_message_note << "\n\n";
+}
+
+
 auto command_none_handler(const WordList_t& args) -> void
 {
     // Ignore the first argument, so we can silence the compiler warning
     std::ignore = args;
-    fmt::println("No subcommand provided. Use 'amd_work_bench help' for more information.");
+    std::cout << "No subcommand provided. Use 'rocm_bandwidth_test help' for more information." << "\n";
 }
 
 

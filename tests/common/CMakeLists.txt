@@ -34,8 +34,12 @@ endif()
 
 # Set the project name
 set(AMD_PROJECT_NAME "tests_common")
-set(AMD_TARGET_LIBNAME "libwork_bench")
+set(AMD_TARGET_LIBNAME "libamd_work_bench")
 project(${AMD_PROJECT_NAME})
 
 add_library(${AMD_PROJECT_NAME} STATIC src/main_test.cpp)
 target_link_libraries(${AMD_PROJECT_NAME} PUBLIC ${AMD_TARGET_LIBNAME} ${FMT_LIBRARIES})
+
+
+## End of CMakeLists.txt
+

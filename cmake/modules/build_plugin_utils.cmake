@@ -22,8 +22,8 @@
 #
 #
 
-set(AMD_TARGET_NAME "amd_work_bench")
-set(AMD_TARGET_LIBNAME "libwork_bench")
+set(AMD_TARGET_NAME "rocm_bandwidth_test")
+set(AMD_TARGET_LIBNAME "libamd_work_bench")
 
 macro(add_amd_work_bench_plugin)
     # Parse arguments
@@ -120,7 +120,7 @@ macro(add_amd_work_bench_plugin)
     endif()
 
     # Fix rpath
-    if(UNIX)
+    if(CMAKE_SYSTEM_NAME MATCHES "Linux")
         set(PLUGIN_RPATH "")
         list(APPEND PLUGIN_RPATH "$ORIGIN")
 

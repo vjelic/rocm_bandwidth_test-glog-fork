@@ -52,6 +52,7 @@
 
 #include <work_bench.hpp>
 #include <awb/common_utils.hpp>
+#include <awb/json.hpp>
 #include <awb/logger.hpp>
 #include <awb/plugin_mgmt.hpp>
 

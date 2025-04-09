@@ -52,6 +52,7 @@
 
 #include <awb/default_sets.hpp>
 #include <awb/filesystem_ops.hpp>
+#include <awb/linux_utils.hpp>
 #include <cpp_std_support/include/cppstd_hooks.hpp>
 
 #include <filesystem>
@@ -80,16 +81,18 @@ auto resume_logging() -> void;
 auto setup_base_logger(const std::string& logger_name, const std::string& logger_file_path) -> void;
 auto enable_developer_logger() -> void;
 auto disable_developer_logger() -> void;
+auto is_logger_enabled() -> bool;
+auto is_global_framework_logging_enabled() -> bool;
 
 using LoggerPtr_t = std::shared_ptr<spdlog::logger>;
 using LoggerSinkPtr_t = std::shared_ptr<spdlog::sinks::basic_file_sink_mt>;
 
-static auto kLOGGER_FILE_APPLICATION_PREFIX(std::string("amd-workbench"));
-static auto kLOGGER_FILE_DEBUG_POSTFIX(std::string("debug"));
-static auto kLOGGER_FILE_PLUGIN_POSTFIX(std::string("plugin"));
-static auto kLOGGER_FILE_EXTENSION(std::string("log"));
-static auto kLOGGER_FILE_APPLICATION_PATH(std::string("./work_bench_info/log"));
-
+static const auto kLOGGER_FILE_APPLICATION_PREFIX(std::string("rocm_bandwidth"));
+static const auto kLOGGER_FILE_DEBUG_POSTFIX(std::string("debug"));
+static const auto kLOGGER_FILE_PLUGIN_POSTFIX(std::string("plugin"));
+static const auto kLOGGER_FILE_EXTENSION(std::string("log"));
+static const auto kLOGGER_FILE_APPLICATION_PATH(std::string("./" + wb_paths::kDEFAULT_INFO_PATH_STR + "/log"));
+static const auto kLOGGER_VAR_DEBUG_ENABLE = std::string("AWB_LOGGING_ENABLE");
 
 enum class LoggerLevel_t
 {
@@ -213,6 +216,11 @@ constexpr auto operator""_fmt() -> FormatString_t<StrTp>
 template<typename... Args>
 [[maybe_unused]] auto loginfo(LoggerLevel_t logger_level, fmt::format_string<Args...> message, Args&&... args) -> void
 {
+    // Check if logging is enabled, otherwise don't log anything
+    if (!is_global_framework_logging_enabled()) {
+        return;
+    }
+
     if (!is_global_framework_logging()) {
         setup_base_logger(kLOGGER_FILE_APPLICATION_PREFIX, kLOGGER_FILE_APPLICATION_PATH);
     }

@@ -65,13 +65,13 @@ namespace amd_work_bench::plugin::hello
 auto handle_hello_command(const WordList_t& args) -> void
 {
     std::ignore = args;
-    std::cout << "Hello from AMD Work Bench Plugin: handle_hello_command()" << std::endl;
+    std::cout << "Hello from AMD ROCm Bandwidth Test Plugin: handle_hello_command()" << std::endl;
 }
 
 auto command_help_handler(const WordList_t& args) -> void
 {
     std::ignore = args;
-    std::cout << "Hello from AMD Work Bench Plugin: command_help_handler()" << std::endl;
+    std::cout << "Hello from AMD ROCm Bandwidth Test Plugin: command_help_handler()" << std::endl;
 }
 
 }    // namespace amd_work_bench::plugin::hello
@@ -102,8 +102,7 @@ int32_t plugin_main(int argc, char** argv)
 {
     // std::ignore = argc;
     // std::ignore = argv;
-    std::cout << "Hello from AMD Work Bench Plugin: plugin_main()" << std::endl;
-
+    std::cout << "Hello from AMD ROCm Bandwidth Test Plugin: plugin_main()" << std::endl;
     std::cout << "details::plugin_main(): \n";
     std::cout << "  - m_argc:" << argc << "\n";
     std::cout << "  - m_argv:" << argv << "\n";

@@ -23,8 +23,8 @@
 #
 
 cmake_minimum_required(VERSION 3.20)
-include(build_plugin_utils)
 
+include(ExternalProject)
 if (NOT USE_SYSTEM_TB_ENGINE)
     message(WARNING ">> Building: TransferBench (TB) as a shared library (plugin)...")
 
@@ -40,26 +40,74 @@ if (NOT USE_SYSTEM_TB_ENGINE)
     #endif()
 
     # Build the TransferBench shared library at build time
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build_libamd_tb_done.log
-        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build_libamd_tb.sh
-        COMMAND touch ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build_libamd_tb_done.log
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/
-        COMMENT "Building 'libamd_tb' dependency library ..."
-    )
-    add_custom_target(build_libamd_tb DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build_libamd_tb_done.log)
-    add_subdirectory(transferbench ${CMAKE_CURRENT_BINARY_DIR}/transferbench EXCLUDE_FROM_ALL)
+    #add_custom_command(
+    #    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build_libamd_tb_done.log
+    #    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build_libamd_tb.sh
+    #    COMMAND touch ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build_libamd_tb_done.log
+    #    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/
+    #    COMMENT "Building 'libamd_tb' dependency library ..."
+    #)
+    #add_custom_target(build_libamd_tb DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/deps/libamd_tb.so)
+    #add_subdirectory(transferbench ${CMAKE_CURRENT_BINARY_DIR}/transferbench EXCLUDE_FROM_ALL)
 
     # Set the include directories
-    set(AMD_WORK_BENCH_COMMON_INCLUDE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../common/)
     set(ROCM_PATH "/opt/rocm")
+    set(AMD_WORK_BENCH_COMMON_INCLUDE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../common/)
     set(TB_PLUGIN_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/include ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/include/Presets ${ROCM_PATH}/include)
-    set(TB_LIBRARY "${CMAKE_CURRENT_SOURCE_DIR}/deps/libamd_tb.so")
-
 else()
     find_package(TransferBench REQUIRED)
 endif()
 
+set(DEPS_DIRECTORY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/deps)
+set(LIB_DIRECTORY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+file(MAKE_DIRECTORY ${DEPS_DIRECTORY_PATH})
+file(MAKE_DIRECTORY ${LIB_DIRECTORY_PATH})
+set(FILE_DEPS_LIST_COPY "")
+get_property(BUILD_TYPE GLOBAL PROPERTY CMAKE_BUILD_TYPE)
+message(STATUS "  >> Build type: '${AMD_PROJECT_BUILD_TYPE}' v:${AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL}")
+ExternalProject_Add( 
+    AMD_TB_LIBRARY
+    ##PREFIX "lib"
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/
+    BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build
+    ##INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/
+    CONFIGURE_COMMAND ""
+    ##  Defined as empty string to avoid the default install step, and uses: 
+    ##  'ExternalProject_Add_Step(AMD_TB_LIBRARY install' 
+    ## INSTALL_COMMAND "" 
+    INSTALL_COMMAND 
+        ${CMAKE_COMMAND} -E make_directory ${LIB_DIRECTORY_PATH} && 
+        ${CMAKE_COMMAND} 
+            -DINSTALL_DEPENDEE_BASE_PATH=${CMAKE_CURRENT_SOURCE_DIR}
+            -DINSTALL_SOURCE_LIBAMD_TB_PATH=${DEPS_DIRECTORY_PATH}
+            -DINSTALL_TARGET_LIBAMD_TB_PATH=${LIB_DIRECTORY_PATH}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/install_libamd_tb.cmake
+
+    BUILD_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build_libamd_tb.sh 
+        ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build 
+        ${AMD_PROJECT_BUILD_TYPE} 
+        ${AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL}
+    COMMENT ">> Building 'libamd_tb' dependency library ..."            
+)
+
+foreach(file_dependency ${FILE_DEPS_LIST_COPY})
+    get_filename_component(file_name ${file_dependency} NAME)
+    #ExternalProject_Add_Step(AMD_TB_LIBRARY copy_${file_name}
+    ##  CMake will execute the commands defined here overriding both the external project's default 
+    ##  install target and any INSTALL_COMMAND provided in the ExternalProject_Add call.
+    ##  DEPENDS build; build is an automagically step created by the ExternalProject_Add call, so we
+    ##  don't need to define it/one
+    ExternalProject_Add_Step(AMD_TB_LIBRARY install
+        COMMENT "  >> Copying ${file_name} to ${DEPS_DIRECTORY_PATH} ..."
+        file(MAKE_DIRECTORY ${DEPS_DIRECTORY_PATH})
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${file_dependency} ${DEPS_DIRECTORY_PATH}/${file_name}
+        DEPENDS build
+    )
+endforeach()
+
+add_custom_target(libamd_tb_dependency ALL DEPENDS AMD_TB_LIBRARY)
+add_library(amd_tb_lib SHARED IMPORTED)
+set_target_properties(amd_tb_lib PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/deps/libamd_tb.so)
 
 ##
 # Add the plugin
@@ -83,10 +131,12 @@ add_amd_work_bench_plugin(
     LIBRARIES
         ${JTHREAD_LIBRARIES}
         ${TB_LIBRARY}
+        pthread
 )
 
-# Add required libraries
+## Add required libraries
 add_definitions(-DAMD_LEGACY_PLUGIN_VIEW)
-set(AMD_WORK_BENCH_PLUGIN_LIB_LINK_LIST "pthread")
-target_link_libraries(${AMD_WORK_BENCH_PLUGIN_NAME_BUILD} PRIVATE ${TB_LIBRARY} ${AMD_WORK_BENCH_PLUGIN_LIB_LINK_LIST})
-add_dependencies(${AMD_WORK_BENCH_PLUGIN_NAME_BUILD} build_libamd_tb)
+add_dependencies(${AMD_WORK_BENCH_PLUGIN_NAME_BUILD} libamd_tb_dependency)
+target_link_libraries(${AMD_WORK_BENCH_PLUGIN_NAME_BUILD} PRIVATE amd_tb_lib)
+
+## End of CMakeLists.txt

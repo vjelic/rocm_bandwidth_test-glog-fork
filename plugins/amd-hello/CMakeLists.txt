@@ -48,3 +48,7 @@ add_amd_work_bench_plugin(
         ${JTHREAD_LIBRARIES}
 
 )
+
+
+## End of CMakeLists.txt
+

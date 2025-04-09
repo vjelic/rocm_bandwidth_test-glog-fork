@@ -31,7 +31,7 @@ else()
     set(ROCM_PATH "/opt/rocm" CACHE STRING "ROCm install directory")
 endif()
 
-set(AMD_PROJECT_NAME "TransferBench")
+set(AMD_PROJECT_NAME "libamd_tb")
 project(${AMD_PROJECT_NAME} VERSION 1.59.00 LANGUAGES CXX C)
 
 # Default GPU architectures to build
@@ -101,20 +101,50 @@ set(AMD_WORK_BENCH_LOCAL_PLUGINS_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/includ
 ##add_executable(${AMD_PROJECT_NAME} src/Client.cpp)
 add_library(${AMD_PROJECT_NAME} SHARED src/Client.cpp include/plugin_tb_link.hpp)
 target_include_directories(${AMD_PROJECT_NAME} PRIVATE ${AMD_WORK_BENCH_COMMON_INCLUDE_DIRECTORY} ${AMD_WORK_BENCH_LOCAL_PLUGINS_INCLUDE_DIRS})
-set_target_properties(${AMD_PROJECT_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../deps/" LIBRARY_OUTPUT_NAME "libamd_tb" PREFIX "")
+if (BUILD_INTERNAL_BINARY_VERSION) 
+    set(BUILD_BINARY_VERSION ${BUILD_INTERNAL_BINARY_VERSION})
+else()
+    set(BUILD_BINARY_VERSION 1)
+endif()
+
+set_target_properties(${AMD_PROJECT_NAME} PROPERTIES 
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build/" 
+    #LIBRARY_OUTPUT_NAME "libamd_tb" 
+    SOVERSION ${BUILD_BINARY_VERSION} 
+    PREFIX ""
+)
 set_property(TARGET ${AMD_PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 find_package(ROCM 0.8 REQUIRED PATHS ${ROCM_PATH})
-include(ROCMInstallTargets)
-include(ROCMCreatePackage)
+#include(ROCMInstallTargets)
+#include(ROCMCreatePackage)
 set(ROCMCHECKS_WARN_TOOLCHAIN_VAR OFF)
-
 set(LIBRARY_NAME ${AMD_PROJECT_NAME})
-rocm_install(TARGETS ${AMD_PROJECT_NAME} COMPONENT devel)
-rocm_package_add_dependencies(DEPENDS numactl hsa-rocr)
+#rocm_install(TARGETS ${AMD_PROJECT_NAME} COMPONENT devel)
+#rocm_package_add_dependencies(DEPENDS numactl hsa-rocr)
 
-rocm_create_package(
-    NAME ${LIBRARY_NAME}
-    DESCRIPTION "TransferBench package"
-    MAINTAINER "RCCL Team <gilbert.lee@amd.com>"
-)
+#rocm_create_package(
+#    NAME ${LIBRARY_NAME}
+#    DESCRIPTION "TransferBench package"
+#    MAINTAINER "RCCL Team <gilbert.lee@amd.com>"
+#)
+
+# 
+## Install target
+set(LIBAMD_TB_FILES_TO_INSTALL "")
+file(GLOB LIBAMD_TB_LIST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/build/libamd_tb.so*")
+if(LIBAMD_TB_LIST_FILES) 
+    list(APPEND LIBAMD_TB_FILES_TO_INSTALL ${LIBAMD_TB_LIST_FILES})
+endif()
+set(TARGET_INSTALL_DIRECTORY ${CMAKE_INSTALL_PREFIX}/lib)
+
+# 
+## Install target: Provided by top CMakeLists.txt, so we can use a 'dynamic_install()' function
+#if(LIBAMD_TB_FILES_TO_INSTALL)
+#    file(MAKE_DIRECTORY ${TARGET_INSTALL_DIRECTORY})
+#    install(FILES ${LIBAMD_TB_FILES_TO_INSTALL} 
+#            DESTINATION ${TARGET_INSTALL_DIRECTORY}
+#    )
+#endif()    
+
+## End of CMakeLists.txt

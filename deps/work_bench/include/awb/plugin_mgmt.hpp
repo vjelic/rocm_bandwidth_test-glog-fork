@@ -167,6 +167,8 @@ enum class PluginStatus_t : i16_t
     PLUGIN_FINISHED_WITH_ERRORS = 1,
 };
 
+const auto kLIBRARY_PLUGIN_EXTENSION = std::string(".amdlplug");
+const auto kREGULAR_PLUGIN_EXTENSION = std::string(".amdplug");
 constexpr auto kBUILTIN_PLUGINS_MIN = u32_t(1);
 
 class PluginIface_t

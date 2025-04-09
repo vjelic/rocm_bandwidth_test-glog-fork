@@ -1,0 +1,4 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/amd_tb_engineTargets.cmake")
+check_required_components(amd_tb_engine)

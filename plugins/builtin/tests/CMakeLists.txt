@@ -31,7 +31,7 @@ if(WIN32)
     return()
 endif()
 
-set(AMD_TARGET_LIBNAME "libwork_bench")
+set(AMD_TARGET_LIBNAME "libamd_work_bench")
 project(${AMD_WORK_BENCH_PLUGIN_NAME}_tests)
 
 #   TODO: Put together the list of the tests here
@@ -50,3 +50,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${AMD_TARGET_LIBNAME})
 foreach(available_test IN LISTS AVAILABLE_TESTS_LIST)
     add_test(NAME "Plugin_${AMD_WORK_BENCH_PLUGIN_NAME}/${available_test}" COMMAND $<TARGET_FILE:plugins_test> "${available_test}" WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 endforeach()
+
+
+## End of CMakeLists.txt

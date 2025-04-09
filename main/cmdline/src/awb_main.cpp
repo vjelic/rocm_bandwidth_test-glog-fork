@@ -99,7 +99,7 @@ int main(int argc, char** argv)
     /*
      *  Send information to the log system.
      */
-    wb_logger::loginfo(LogLevel::LOGGER_INFO, "AMD Workbench started. {}", "...");
+    wb_logger::loginfo(LogLevel::LOGGER_INFO, "AMD ROCm Bandwidth started. {}", "...");
 
     /*
      *  TODO:   Add more information to the log system.
@@ -109,7 +109,7 @@ int main(int argc, char** argv)
      *          - GPU information
      */
     wb_logger::loginfo(LogLevel::LOGGER_INFO,
-                       "AMD Workbench version: {} [Commit: {} / Branch: {} / Build Type: {}]",
+                       "AMD ROCm Bandwidth version: {} [Commit: {} / Branch: {} / Build Type: {}]",
                        wb_api_system::get_work_bench_version(),
                        wb_api_system::get_work_bench_commit_hash(),
                        wb_api_system::get_work_bench_commit_branch(),

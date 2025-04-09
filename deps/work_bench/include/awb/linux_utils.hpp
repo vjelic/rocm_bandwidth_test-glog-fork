@@ -65,7 +65,7 @@ namespace std_fs = std::filesystem;
 
 static const auto kDEFAULT_VAR_PATH = std::string("PATH");
 static const auto kDEFAULT_VAR_LD_LIB_PATH = std::string("LD_LIBRARY_PATH");
-
+static const auto kDEFAULT_VAR_LD_PLUGIN_LIB_PATH = std::string("LD_AWB_PLUGIN_LIBRARY_PATH");
 
 using WordList_t = std::vector<std::string>;
 
@@ -75,6 +75,8 @@ auto is_file_in_path(const FSPath_t& file_path) -> bool;
 auto get_executable_path() -> std::optional<std_fs::path>;
 auto native_error_message(const std::string& message) -> void;
 auto startup_native() -> void;
+
+auto get_env_var(const std::string& var_name) -> std::optional<std::string>;
 
 auto get_kernel_version() -> std::string;
 auto get_distro_version() -> std::string;

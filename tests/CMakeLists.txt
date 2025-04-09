@@ -36,7 +36,7 @@ endif()
 # TODO: Set these down to children CMakeLists.txt with 'PARENT_SCOPE'
 set(AMD_PROJECT_NAME "unit_tests")
 set(AMD_TARGET_NAME "tests_common")
-set(AMD_TARGET_LIBNAME "libwork_bench")
+set(AMD_TARGET_LIBNAME "libamd_work_bench")
 project(${AMD_PROJECT_NAME})
 
 # TODO:  Add needed subdirectories
@@ -44,3 +44,7 @@ add_subdirectory(common)
 target_compile_definitions(${AMD_TARGET_NAME} PUBLIC AMD_WORK_BENCH_PROJECT_NAME="${PROJECT_NAME}")
 
 add_subdirectory(plugins)
+
+
+## End of CMakeLists.txt
+
