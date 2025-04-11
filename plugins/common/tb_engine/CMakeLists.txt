@@ -59,7 +59,7 @@ endif()
 set(ROCM_INCLUDE_DIRS ${ROCM_PATH}/include ${ROCM_PATH}/include/hsa ${ROCM_PATH}/include/hip)
 set(ROCM_LIBRARY_DIRS ${ROCM_PATH}/lib)
 
-find_package(ROCmCMakeBuildTools 0.8 REQUIRED PATHS ${ROCM_PATH})
+#find_package(ROCmCMakeBuildTools 0.8 REQUIRED PATHS ${ROCM_PATH})
 find_package(hsa-runtime64 REQUIRED PATHS ${ROCM_PATH})
 
 

@@ -170,9 +170,9 @@ function(check_default_compiler_requirements result)
         endif()
 
         if (HAS_DEFAULT_COMPILER_REQUIREMENTS)
-            set(${result} FALSE PARENT_SCOPE)
-        else()
             set(${result} TRUE PARENT_SCOPE)
+        else()
+            set(${result} FALSE PARENT_SCOPE)
         endif()
     endif()        
 endfunction()
@@ -646,19 +646,25 @@ macro(add_bundled_libraries)
 
         #       If/in case we set CPP Standard to 23, but the compiler won't support it, 
         #       we will try to use the '<boost::stacktrace>' header.
-        set(STACKTRACE_TRY_OPTIONAL TRUE)
+        set(STACKTRACE_BOOST_TRY_OPTIONAL TRUE)
         if(CMAKE_CXX_STANDARD GREATER_EQUAL 23)
             message(STATUS ">> C++23 is required to use the '<stacktrace>' header ...")
             has_minimum_compiler_version_for_standard(CMAKE_CXX_STANDARD CMAKE_CXX_COMPILER_ID CMAKE_CXX_COMPILER_VERSION HAS_MINIMUM_COMPILER_VERSION)
-            if(HAS_MINIMUM_COMPILER_VERSION)
-                message(WARNING ">> C++23 requirements were met. We will link the 'stdc++_libbacktrace' library.")
+            check_default_compiler_requirements(WAS_TRY_CLANG_DEFAULT_COMPILER)
+            ## We don't need to link the 'stdc++_libbacktrace' library. It is already in libstdc++ for C++23 and later.
+            if(WAS_TRY_CLANG_DEFAULT_COMPILER)
+                message(STATUS ">> COMPILER_TRY_CLANG=ON: C++ 23 Minimum requirements met. ...")
+            elseif(HAS_MINIMUM_COMPILER_VERSION)
+                message(WARNING ">> C++23 minimum requirements for 'backtrace' were met. Linking against 'stdc++_libbacktrace' ...")
                 set(BACKTRACE_LIBRARIES ${BACKTRACE_LIBRARIES} "stdc++_libbacktrace")
-                set(STACKTRACE_TRY_OPTIONAL FALSE)
+            endif()
+            if(WAS_TRY_CLANG_DEFAULT_COMPILER OR HAS_MINIMUM_COMPILER_VERSION)
+                set(STACKTRACE_BOOST_TRY_OPTIONAL FALSE)
             endif()
         endif()
 
         #    If the compiler does not support C++23, we will try to use the '<boost::stacktrace>' header.
-        if(STACKTRACE_TRY_OPTIONAL)
+        if(STACKTRACE_BOOST_TRY_OPTIONAL)
             message(WARNING ">> C++23 requirements were not met. Std: ${CMAKE_CXX_STANDARD}, Compiler: ${CMAKE_CXX_COMPILER_ID}, v: ${CMAKE_CXX_COMPILER_VERSION}")
             find_package(Boost QUIET COMPONENTS stacktrace)
             if(Boost_FOUND AND TARGET Boost::stacktrace)
@@ -819,6 +825,27 @@ macro(setup_distribution_package)
     
 endmacro()
 
+macro(setup_compiler_init_flags)
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag(-ftrivial-auto-var-init=zero HAS_TRIVIAL_AUTO_VAR_INIT_COMPILER)
+
+    if(NOT COMPILER_INIT_FLAG)
+        if(HAS_TRIVIAL_AUTO_VAR_INIT_COMPILER)
+            message(STATUS ">> Compiler supports -ftrivial-auto-var-init")
+            set(COMPILER_INIT_FLAG "-ftrivial-auto-var-init=zero" CACHE STRING "Using cache trivially-copyable automatic variable initialization.")
+        else()
+            message(STATUS ">> Compiler does not support -ftrivial-auto-var-init")
+            set(COMPILER_INIT_FLAG " " CACHE STRING "Using cache trivially-copyable automatic variable initialization.")
+        endif()
+    endif()
+
+    ##  Initialize automatic variables with either a pattern or with zeroes to increase program security by preventing
+    ##  uninitialized memory disclosure and use. '-ftrivial-auto-var-init=[uninitialized|pattern|zero]' where
+    ##  'uninitialized' is the default, 'pattern' initializes variables with a pattern, and 'zero' initializes variables
+    ##  with zeroes.
+    set(AMD_WORK_BENCH_COMMON_FLAGS "${AMD_WORK_BENCH_COMMON_FLAGS} ${COMPILER_INIT_FLAG}")
+endmacro()
+
 macro(setup_compression_flags)
     include(CheckCXXCompilerFlag)
     include(CheckLinkerFlag)
@@ -889,17 +916,14 @@ macro(setup_compiler_flags target_name)
             ##  allocated in registers don’t count.
             ##
             set(AMD_WORK_BENCH_COMMON_FLAGS "${AMD_WORK_BENCH_COMMON_FLAGS} -fstack-protector-strong")
-
-            ##  Initialize automatic variables with either a pattern or with zeroes to increase program security by preventing 
-            ##  uninitialized memory disclosure and use. '-ftrivial-auto-var-init=[uninitialized|pattern|zero]' where 
-            ##  'uninitialized' is the default, 'pattern' initializes variables with a pattern, and 'zero' initializes variables
-            ##  with zeroes.
-            set(AMD_WORK_BENCH_COMMON_FLAGS "${AMD_WORK_BENCH_COMMON_FLAGS} -ftrivial-auto-var-init=zero")
         endif()            
 
         if(AMD_APP_DEBUG_INFO_COMPRESS)
             setup_compression_flags()
         endif()
+
+        ## Compiler initialization flags
+        setup_compiler_init_flags()
     endif()
 
     # CMake specific flags

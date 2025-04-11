@@ -111,12 +111,22 @@ auto register_subcommand(const std::string& cmd_name, const ForwardCommandHandle
                                                    std::string text_data(reinterpret_cast<const char*>(message_data.data()),
                                                                          message_data.size());
                                                    WordList_t args{};
-                                                   for (const auto& arg : std::views::split(text_data, char(0x00))) {
-                                                       std::string arg_str(arg.data(), arg.size());
-                                                       args.push_back(arg_str);
+                                                   auto args_list = wb_strings::split_str(text_data, char(0x00));
+                                                   for (const auto& arg : args_list) {
+                                                       args.push_back(arg);
                                                    }
                                                    cmd_handler(args);
                                                });
+
+    /*
+    //  Note:   Clang++ (v19) doesn't like this, g++ (v13+) works well.
+       for (const auto& arg : std::views::split(text_data, char(0x00))) {
+           std::string arg_str(arg.data(), arg.size());
+           args.push_back(arg_str);
+       }
+       cmd_handler(args);
+   });
+   */
 }
 
 

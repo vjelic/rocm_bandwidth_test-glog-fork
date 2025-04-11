@@ -33,6 +33,7 @@ endif()
 
 # Set the project name
 set(AMD_TARGET_NAME "rocm_bandwidth_test")
+set(AMD_TARGET_NAME_SYMLINK "rocm-bandwidth-test")
 set(AMD_TARGET_LIBNAME "libamd_work_bench")
 set(AMD_PROJECT_NAME "awb_main")
 
@@ -73,6 +74,12 @@ set_target_properties(${AMD_PROJECT_NAME} PROPERTIES
     OUTPUT_NAME ${AMD_WORK_BENCH_APPLICATION_NAME}
     RUNTIME_OUTPUT_DIRECTORY ${PROJECT_MAIN_OUTPUT_DIRECTORY}
 )
+
+#add_custom_command(
+#    TARGET ${AMD_PROJECT_NAME} POST_BUILD
+#    COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE:${AMD_PROJECT_NAME}> "${PROJECT_MAIN_OUTPUT_DIRECTORY}/${AMD_TARGET_NAME_SYMLINK}"
+#    DEPENDS ${AMD_PROJECT_NAME}
+#)
 
 target_compile_definitions(${AMD_PROJECT_NAME} PRIVATE
     AMD_WORK_BENCH_PROJECT_NAME=${PROJECT_NAME}

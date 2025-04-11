@@ -228,11 +228,22 @@ auto is_process_elevated() -> bool
 auto is_file_in_path(const FSPath_t& file_path) -> bool
 {
     if (auto opt_path_var = wb_utils::get_env_var(kDEFAULT_VAR_PATH); opt_path_var.has_value()) {
-        for (auto dir_path : std::views::split(opt_path_var.value(), ':')) {
-            if (std_fs::exists(FSPath_t(std::string_view(dir_path)) / file_path)) {
+        auto dir_path_list = wb_strings::split_str(opt_path_var.value(), ':');
+        for (const auto& dir_path : dir_path_list) {
+            auto full_path = std_fs::path((dir_path) / file_path);
+            if (std_fs::exists(full_path)) {
                 return true;
             }
         }
+        /*
+        //  Note:   Clang++ (v19) doesn't like this, g++ (v13+) works well.
+        for (const auto& dir_path : std::views::split(opt_path_var.value(), ':')) {
+            auto full_path = std::string(dir_path.begin(), dir_path.end());
+            if (std_fs::exists(FSPath_t(full_path) / file_path)) {
+                return true;
+            }
+        }
+        */
     } else {
         wb_logger::loginfo(LogLevel::LOGGER_ERROR, "Variable 'PATH' is not set.");
     }

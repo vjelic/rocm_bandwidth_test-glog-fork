@@ -161,7 +161,7 @@ function(dynamic_install install_flag install_type target_install_base_path comp
     set(LIBAMD_WORK_BENCH_PATTERN "libamd_work_bench.so*")
     set(LIBAMD_COMMON_TB_ENGINE_PATTERN "libamd_tb_engine.so*")
     set(LIBAMD_PLUGIN_TB_PATTERN "libamd_tb.so*")
-    set(BINAMD_WORK_BENCH_PATTERN "rocm_bandwidth_test*")
+    set(BINAMD_WORK_BENCH_PATTERN "rocm_bandwidth_test*" "rocm-bandwidth-test*")
     set(LIBAMD_PLUGINS_PATTERN "*.amdplug")
 
     file(GLOB LIBAMD_DYNLIB_MGMT_FILES "${LIBAMD_DYNLIB_MGMT_PATH}/${LIBAMD_DYNLIB_MGMT_PATTERN}")
@@ -368,12 +368,21 @@ function(dynamic_install install_flag install_type target_install_base_path comp
             foreach(bin_copy_file ${BINAMD_WORK_BENCH_FILES})
                 file(INSTALL ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE EXECUTABLE FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
                 # Check if binary file has "_" and replace with "-" for a symlink name
-                get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
-                string(FIND "${bin_copy_file_name}" "_" character_index)
-                if(${character_index} GREATER -1)
-                    string(REPLACE "_" "-" symlink_file_name "${bin_copy_file_name}")
-                    file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} SYMBOLIC)
-                endif()
+                #get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
+                #string(FIND "${bin_copy_file_name}" "_" character_index)
+                #if(${character_index} GREATER -1)
+                #    string(REPLACE "_" "-" symlink_file_name "${bin_copy_file_name}")
+                #    execute_process(
+                #        COMMAND create_symlink "./${bin_copy_file_name}" "${symlink_file_name}"
+                #        OUTPUT_VARIABLE SYMLINK_OUTPUT
+                #        WORKING_DIRECTORY ${AMD_TARGET_INSTALL_PATH}
+                #        RESULT_VARIABLE SYMLINK_RESULT
+                #    )
+                #    if(NOT SYMLINK_RESULT EQUAL 0)
+                #        message(WARNING "Failed to create SYMBOLIC: ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} for: ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name}")
+                #    endif()
+                #    #file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} SYMBOLIC)
+                #endif()
             endforeach()
 
         else()

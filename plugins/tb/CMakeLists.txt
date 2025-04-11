@@ -51,7 +51,11 @@ if (NOT USE_SYSTEM_TB_ENGINE)
     #add_subdirectory(transferbench ${CMAKE_CURRENT_BINARY_DIR}/transferbench EXCLUDE_FROM_ALL)
 
     # Set the include directories
-    set(ROCM_PATH "/opt/rocm")
+    if(DEFINED ENV{ROCM_PATH})
+        set(ROCM_PATH $ENV{ROCM_PATH})    
+    else()
+        set(ROCM_PATH "/opt/rocm")
+    endif()
     set(AMD_WORK_BENCH_COMMON_INCLUDE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../common/)
     set(TB_PLUGIN_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/include ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/include/Presets ${ROCM_PATH}/include)
 else()
@@ -63,6 +67,31 @@ set(LIB_DIRECTORY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 file(MAKE_DIRECTORY ${DEPS_DIRECTORY_PATH})
 file(MAKE_DIRECTORY ${LIB_DIRECTORY_PATH})
 set(FILE_DEPS_LIST_COPY "")
+message(WARNING ">> Trying to find 'hipcc', required for this component (AMD_TB_LIBRARY) ...")
+
+if(DEFINED ENV{ROCM_PATH})
+    set(ROCM_PATH $ENV{ROCM_PATH})
+else()
+    if(DEFINED ENV{ROCM_INSTALL_PATH})
+        set(ROCM_PATH $ENV{ROCM_INSTALL_PATH})
+    elseif(DEFINED ENV{ROCM_VERSION})
+        set(ROCM_PATH "/opt/rocm-$ENV{ROCM_INSTALL_PATH}")
+    else()
+        set(ROCM_PATH "/opt/rocm")
+    endif()
+endif()
+set(HIPCC_CXX_PATH "${ROCM_PATH}")
+if (NOT HIPCC_CXX_PATH STREQUAL "")
+    set(HIPCC_CXX_PATH "${HIPCC_CXX_PATH}/bin")
+endif()
+
+find_program(HIPCC_COMPILER_CXX hipcc HINTS ${HIPCC_CXX_PATH} ${CMAKE_CXX_COMPILER_PATH} ${CMAKE_CXX_COMPILER})
+if(HIPCC_COMPILER_CXX)
+    message(STATUS "  >> Found 'hipcc' compiler: ${HIPCC_COMPILER_CXX}")
+else()
+    message(FATAL_ERROR "  >> Failed to find 'hipcc' compiler")
+endif()
+
 get_property(BUILD_TYPE GLOBAL PROPERTY CMAKE_BUILD_TYPE)
 message(STATUS "  >> Build type: '${AMD_PROJECT_BUILD_TYPE}' v:${AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL}")
 ExternalProject_Add( 
@@ -87,6 +116,7 @@ ExternalProject_Add(
         ${CMAKE_CURRENT_SOURCE_DIR}/transferbench/build 
         ${AMD_PROJECT_BUILD_TYPE} 
         ${AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL}
+        ${HIPCC_COMPILER_CXX}
     COMMENT ">> Building 'libamd_tb' dependency library ..."            
 )
 
