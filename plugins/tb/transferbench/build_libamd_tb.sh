@@ -28,7 +28,7 @@ fi
 echo "  >> Cleaning up the build directory ..."
 rm -rf $BUILD_DIRECTORY/*
 
-export ROCM_PATH=/opt/rocm
+##export ROCM_PATH=/opt/rocm
 CXX=$BUILD_HIPCC_BINARY cmake -S $PARENT_DIR -B $BUILD_DIRECTORY -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DBUILD_INTERNAL_BINARY_VERSION="$BUILD_INTERNAL_BINARY_VERSION"
 cmake --build $BUILD_DIRECTORY
 pwd

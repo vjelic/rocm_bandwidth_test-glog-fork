@@ -52,7 +52,7 @@ if (NOT USE_SYSTEM_TB_ENGINE)
 
     # Set the include directories
     if(DEFINED ENV{ROCM_PATH})
-        set(ROCM_PATH $ENV{ROCM_PATH})    
+        set(ROCM_PATH $ENV{ROCM_PATH})
     else()
         set(ROCM_PATH "/opt/rocm")
     endif()

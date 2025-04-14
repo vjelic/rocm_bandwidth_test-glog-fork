@@ -96,9 +96,16 @@ set(AMD_PROJECT_AUTHOR_ORGANIZATION "AMD, Inc.")
 set(AMD_PROJECT_GITHUB_REPO         "https://github.com/ROCm/rocm_bandwidth_test")
 set(AMD_PROJECT_AUTHOR_DOMAIN       "https://www.amd.com")
 set(AMD_PROJECT_AUTHOR_MAINTAINER   "daniel.oliveira@amd.com")
-set(AMD_PROJECT_VERSION_MAJOR       "2025")
-set(AMD_PROJECT_VERSION_MINOR       "03")
-set(AMD_PROJECT_VERSION_PATCH       "21")
+set(AMD_PROJECT_VERSION_MAJOR       "")
+set(AMD_PROJECT_VERSION_MINOR       "")
+set(AMD_PROJECT_VERSION_PATCH       "")
+if(AMD_TARGET_VERSION AND ((AMD_PROJECT_VERSION_MAJOR STREQUAL "") OR (AMD_PROJECT_VERSION_MINOR STREQUAL "") OR (AMD_PROJECT_VERSION_PATCH STREQUAL "")))
+    string(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\1" AMD_PROJECT_VERSION_MAJOR ${AMD_TARGET_VERSION})
+    string(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\2" AMD_PROJECT_VERSION_MINOR ${AMD_TARGET_VERSION})
+    string(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\3" AMD_PROJECT_VERSION_PATCH ${AMD_TARGET_VERSION})
+else()
+    message(FATAL_ERROR ">> 'AMD_TARGET_VERSION' was not properly set!")
+endif()
 set(AMD_PROJECT_VERSION_FULL "${AMD_PROJECT_VERSION_MAJOR}.${AMD_PROJECT_VERSION_MINOR}.${AMD_PROJECT_VERSION_PATCH}")
 
 project(${AMD_TARGET_NAME}
@@ -140,6 +147,7 @@ set(AMD_APP_ROCM_BUILD_PACKAGE_INTERNAL ${AMD_APP_ROCM_BUILD_PACKAGE} CACHE BOOL
 set(AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL ${AMD_TARGET_VERSION} CACHE STRING "Builtin Target version for libraries" FORCE)
 
 message(STATUS "[[ Building... Project: " ${CMAKE_PROJECT_NAME} " v." ${AMD_TARGET_VERSION_TEXT} " / " ${AMD_TARGET_VERSION} " {Build: " ${AMD_PROJECT_BUILD_TYPE} " | ROCm Build/Package Env: " ${AMD_APP_ROCM_BUILD_PACKAGE} "} ]] ...")
+message(STATUS "  >> Project will be packaged with: " '${AMD_PROJECT_VERSION_FULL}' " timestamp ...")
 
 setup_project()
 add_custom_target(${AMD_TARGET_NAME}_all ALL)
