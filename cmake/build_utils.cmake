@@ -314,17 +314,106 @@ endfunction()
 function(add_executable target_name)
     _add_executable(${target_name} ${ARGN})
     adjust_ide_support_target(${target_name})
-endfunction()    
+endfunction()
+
+function(check_dependency_system_library package_name library_name required_version)
+    if(required_version)
+        find_package(${package_name} ${required_version} QUIET)
+    else()
+        find_package(${package_name} REQUIRED)
+    endif()
+
+    if(${package_name}_FOUND)
+        message(STATUS ">> check_dependency_system_library(): Dependency Check; '${package_name}' v${${package_name}_VERSION} was found ...")
+        ##set(${library_name} ${${package_name}_LIBRARIES} PARENT_SCOPE)
+        ##set(${library_name}_INCLUDE_DIRS ${${package_name}_INCLUDE_DIRS} PARENT_SCOPE)
+    else()
+        message(WARNING ">> check_dependency_system_library(): Dependency Check; '${package_name}' v${${package_name}_VERSION} not found ...")
+        set(USE_LOCAL_${library_name} OFF PARENT_SCOPE)
+    endif()
+endfunction()
+
+function(declare_fetch_content library_name git_repo_url git_commit_hash source_directory)
+    if (NOT library_name OR NOT git_repo_url OR NOT git_commit_hash)
+        message(FATAL_ERROR ">> declare_fetch_content(): Missing required parameters: '${library_name}'")
+    endif()
+
+    if (NOT DEFINED ${library_name}_GIT_REPO_URL)
+        set(${library_name}_GIT_REPO_URL ${git_repo_url} CACHE STRING "Git repository URL for ${library_name}" FORCE)
+    endif()
+    if (NOT DEFINED ${library_name}_GIT_COMMIT_HASH)
+        set(${library_name}_GIT_COMMIT_HASH ${git_commit_hash} CACHE STRING "Git commit hash for ${library_name}" FORCE)
+    endif()
+    if (NOT DEFINED ${library_name}_SOURCE_DIR AND source_directory)
+        set(${library_name}_SOURCE_DIR ${source_directory} CACHE STRING "Source directory for ${library_name}" FORCE)
+    endif()
+
+    #
+    ## Setup fetch content args
+    #GIT_REPOSITORY "${${library_name}_GIT_REPO_URL}"
+    #GIT_TAG "${${library_name}_GIT_COMMIT_HASH}"
+    set(fetch_args
+        ${library_name}
+        GIT_REPOSITORY "${git_repo_url}"
+        GIT_TAG "${git_commit_hash}"
+    )
+
+    #   If source_directory was provided, check if it exists
+    if(source_directory)
+        if(EXISTS "${source_directory}/.git")
+            #   Validate the commit hash required
+            execute_process(
+                COMMAND git -C "${source_directory}" rev-parse HEAD
+                OUTPUT_VARIABLE output_git_commit_hash
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                RESULT_VARIABLE result_git_commit_hash
+            )
+            if(result_git_commit_hash EQUAL 0 AND output_git_commit_hash STREQUAL "${git_commit_hash}")
+                message(STATUS ">> declare_fetch_content(): Reusing existing; '${library_name}' @commit: '${git_commit_hash}' available at: '${source_directory}' ...")
+            else()
+                message(STATUS ">> declare_fetch_content(): Resetting existing; '${library_name}' @commit: '${git_commit_hash}' at: '${source_directory}' ...")
+                execute_process(
+                    COMMAND git -C "${source_directory}" reset --hard ${git_commit_hash}
+                    COMMAND git -C "${source_directory}" clean -fd
+                    RESULT_VARIABLE result_git_reset_hash
+                )
+                if(NOT result_git_reset_hash EQUAL 0)
+                    message(WARNING ">> declare_fetch_content(): Failed to reset '${library_name}' @commit: '${git_commit_hash}' at: '${source_directory}' . Cleaning it up...")
+                    file(REMOVE_RECURSE "${source_directory}")
+                    file(MAKE_DIRECTORY "${source_directory}")
+                endif()
+            endif()
+        elseif(EXISTS "${source_directory}")
+            message(WARNING ">> declare_fetch_content(): Cleaning up existing: '${source_directory}' . Not a 'git repo' ...")
+            file(REMOVE_RECURSE "${source_directory}")
+            file(MAKE_DIRECTORY "${source_directory}")
+        else()
+            message(STATUS ">> declare_fetch_content(): Creating new source directory: '${source_directory}' ...")
+            file(MAKE_DIRECTORY "${source_directory}")
+        endif()
+
+        #   Append source_directory to fetch content args
+        list(APPEND fetch_args SOURCE_DIR "${source_directory}")
+
+    else()
+        #   Uses the default '${CMAKE_BINARY_DIR}/_deps/${library_name}-src' directory
+        message(STATUS ">> declare_fetch_content(): Using 'default FetchContent directory' for; '${library_name}' @commit: '${git_commit_hash}' ...")
+    endif()
+
+    #   Finally FetchContent_Declare
+    FetchContent_Declare(${fetch_args})
+    message(STATUS ">> declare_fetch_content(): FetchContent for: '${library_name}' @commit: '${git_commit_hash}' -> downloading to: '${source_directory}' ...")
+endfunction()
 
 
 #
 # Note: All macro definitions here
-macro(return_is_target_non_adjustable target_name) 
+macro(return_is_target_non_adjustable target_name)
     get_target_property(target_is_aliased ${target_name} ALIASED_TARGET)
     get_target_property(target_is_imported ${target_name} IMPORTED)
     if (target_is_aliased OR target_is_imported)
         return()
-    endif() 
+    endif()
 
     get_target_property(target_type ${target_name} TYPE)
     if(${target_type} MATCHES "INTERFACE_LIBRARY|UNKNOWN_LIBRARY")
@@ -560,7 +649,7 @@ endmacro()
 macro(add_bundled_libraries)
     set(EXTERNAL_LIBRARIES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps/external")
     set(3RD_PARTY_LIBRARIES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps/3rd_party")
-
+    set(3RD_PARTY_DEPENDENCY_BASE_DIRECTORY "${CMAKE_BINARY_DIR}/deps/3rd_party")
     set(BUILD_SHARED_LIBS OFF)
 
     # add_subdirectory(${EXTERNAL_LIBRARIES_DIRECTORY}/DynLibMgmt EXCLUDE_FROM_ALL)
@@ -571,12 +660,23 @@ macro(add_bundled_libraries)
     # FindPackageHandleStandardArgs name mismatched
     set(FPHSA_NAME_MISMATCHED ON CACHE BOOL "")
 
-    ## TODO: It fails and needs to be fixed
+    ##
     find_package(CURL REQUIRED)
+
+    set(FMT_PACKAGE_NAME "fmt")
+    set(FMT_LIBRARY_NAME "fmt")
+    set(FMT_REPO_URL "https://github.com/fmtlib/fmt.git")
+    set(FMT_REQUIRED_VERSION "8.1.1")
+    set(FMT_REPO_COMMIT "b6f4ceaed0a0a24ccf575fab6c56dd50ccf6f1a9")
+    set(FMT_SOURCE_DIR "${3RD_PARTY_DEPENDENCY_BASE_DIRECTORY}/${FMT_LIBRARY_NAME}")
     if(NOT USE_LOCAL_FMT_LIB)
+        ##declare_fetch_content(${FMT_LIBRARY_NAME} ${FMT_REPO_URL} ${FMT_REPO_COMMIT} ${FMT_SOURCE_DIR})
+        ##FetchContent_MakeAvailable(${FMT_LIBRARY_NAME})
+        ##add_subdirectory(${FMT_SOURCE_DIR} EXCLUDE_FROM_ALL)
         add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/fmt EXCLUDE_FROM_ALL)
         set(FMT_LIBRARIES fmt::fmt-header-only)
     else()
+        ##check_dependency_system_library(${FMT_PACKAGE_NAME} ${FMT_LIBRARY_NAME} ${FMT_REQUIRED_VERSION})
         find_package(fmt REQUIRED)
         set(FMT_LIBRARIES fmt::fmt)
     endif()
@@ -589,18 +689,38 @@ macro(add_bundled_libraries)
     #    set(BOOST_STACKTRACE_LIBRARIES Boost::stacktrace)
     #endif()
 
+    set(JSON_PACKAGE_NAME "nlohmann_json")
+    set(JSON_LIBRARY_NAME "nlohmann_json")
+    set(JSON_REPO_URL "https://github.com/nlohmann/json.git")
+    set(JSON_REQUIRED_VERSION "3.11.0")
+    set(JSON_REPO_COMMIT "499422b303f62568bd010516531b82f1b783d73b")
+    set(JSON_SOURCE_DIR "${3RD_PARTY_DEPENDENCY_BASE_DIRECTORY}/json")
     if(NOT USE_LOCAL_NLOHMANN_JSON)
+        ##declare_fetch_content(${JSON_LIBRARY_NAME} ${JSON_REPO_URL} ${JSON_REPO_COMMIT} ${JSON_SOURCE_DIR})
+        ##FetchContent_MakeAvailable(${JSON_LIBRARY_NAME})
+        ##add_subdirectory(${JSON_SOURCE_DIR} EXCLUDE_FROM_ALL)
         add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/json EXCLUDE_FROM_ALL)
         set(NLOHMANN_JSON_LIBRARIES nlohmann_json)
     else()
+        ##check_dependency_system_library(${JSON_PACKAGE_NAME} ${JSON_LIBRARY_NAME} ${JSON_REQUIRED_VERSION})
         find_package(nlohmann_json 3.11.0 REQUIRED)
         set(NLOHMANN_JSON_LIBRARIES nlohmann_json::nlohmann_json)
     endif()
 
+    set(SPDLOG_PACKAGE_NAME "spdlog")
+    set(SPDLOG_LIBRARY_NAME "spdlog")
+    set(SPDLOG_REPO_URL "https://github.com/gabime/spdlog.git")
+    set(SPDLOG_REQUIRED_VERSION "1.14.0")
+    set(SPDLOG_REPO_COMMIT "238c9ffa5d1a14226eeabe10c9b63ffff3ed8b8e")
+    set(SPDLOG_SOURCE_DIR "${3RD_PARTY_DEPENDENCY_BASE_DIRECTORY}/json")
     if(NOT USE_LOCAL_SPDLOG)
+        ##declare_fetch_content(${SPDLOG_LIBRARY_NAME} ${SPDLOG_REPO_URL} ${SPDLOG_REPO_COMMIT} ${SPDLOG_SOURCE_DIR})
+        ##FetchContent_MakeAvailable(${SPDLOG_LIBRARY_NAME})
+        ##add_subdirectory(${SPDLOG_SOURCE_DIR} EXCLUDE_FROM_ALL)
         add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/spdlog EXCLUDE_FROM_ALL)
         set(SPDLOG_LIBRARIES spdlog::spdlog_header_only)
     else()
+        ##check_dependency_system_library(${SPDLOG_PACKAGE_NAME} ${SPDLOG_LIBRARY_NAME} ${SPDLOG_REQUIRED_VERSION})
         find_package(spdlog REQUIRED)
         set(SPDLOG_LIBRARIES spdlog::spdlog)
     endif()
@@ -615,7 +735,6 @@ macro(add_bundled_libraries)
         target_include_directories(jthread INTERFACE ${JOSUTTIS_JTHREAD_INCLUDE_DIRS})
         set(JTHREAD_LIBRARIES jthread)
     endif()
-
 
     # Note: We will not use the boost.parse_args library for now.
     # if(NOT USE_LOCAL_BOOST)

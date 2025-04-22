@@ -161,7 +161,7 @@ function(dynamic_install install_flag install_type target_install_base_path comp
     set(LIBAMD_WORK_BENCH_PATTERN "libamd_work_bench.so*")
     set(LIBAMD_COMMON_TB_ENGINE_PATTERN "libamd_tb_engine.so*")
     set(LIBAMD_PLUGIN_TB_PATTERN "libamd_tb.so*")
-    set(BINAMD_WORK_BENCH_PATTERN "rocm_bandwidth_test*" "rocm-bandwidth-test*")
+    set(BINAMD_WORK_BENCH_PATTERN "rocm_bandwidth_test*")
     set(LIBAMD_PLUGINS_PATTERN "*.amdplug")
 
     file(GLOB LIBAMD_DYNLIB_MGMT_FILES "${LIBAMD_DYNLIB_MGMT_PATH}/${LIBAMD_DYNLIB_MGMT_PATTERN}")
@@ -248,7 +248,8 @@ function(dynamic_install install_flag install_type target_install_base_path comp
                 message(STATUS "  >> Copying '${bin_copy_file}' to ${AMD_TARGET_INSTALL_PATH}")
                 file(COPY ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN)
                 get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
-                file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${bin_copy_file_name} SYMBOLIC)
+                ##file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${bin_copy_file_name} SYMBOLIC)
+                file(CREATE_LINK "./${AMD_ENGINEERING_TARGET_INSTALL_BINDIR}/${bin_copy_file_name}" "./${bin_copy_file_name}" SYMBOLIC)
             endforeach()
 
             # Also creates a bz2 file with the 'engineering_build' directory

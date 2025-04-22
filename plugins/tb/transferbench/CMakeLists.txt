@@ -115,7 +115,11 @@ set_target_properties(${AMD_PROJECT_NAME} PROPERTIES
 )
 set_property(TARGET ${AMD_PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-find_package(ROCM 0.8 REQUIRED PATHS ${ROCM_PATH})
+## Under ROCm build environment, package might not be available/installed yet
+#if (NOT AMD_APP_ROCM_BUILD_PACKAGE)
+#    find_package(ROCM 0.8 REQUIRED PATHS ${ROCM_PATH})
+#endif()
+
 #include(ROCMInstallTargets)
 #include(ROCMCreatePackage)
 set(ROCMCHECKS_WARN_TOOLCHAIN_VAR OFF)

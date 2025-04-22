@@ -1,27 +1,33 @@
 [submodule "deps/3rd_party/CLI11"]
-	path = deps/3rd_party/CLI11
-	url = https://github.com/CLIUtils/CLI11.git
+        path = deps/3rd_party/CLI11
+        url = https://github.com/CLIUtils/CLI11.git
+        branch = v2.4.2
 [submodule "deps/3rd_party/fmt"]
-	path = deps/3rd_party/fmt
-	url = https://github.com/fmtlib/fmt.git
+        path = deps/3rd_party/fmt
+        url = https://github.com/fmtlib/fmt.git
+        branch = 11.1.1
 [submodule "deps/3rd_party/json"]
-	path = deps/3rd_party/json
-	url = https://github.com/nlohmann/json.git
+        path = deps/3rd_party/json
+        url = https://github.com/nlohmann/json.git
+        branch = v3.11.3
 [submodule "deps/3rd_party/spdlog"]
-	path = deps/3rd_party/spdlog
-	url = https://github.com/gabime/spdlog
+        path = deps/3rd_party/spdlog
+        url = https://github.com/gabime/spdlog
+        branch = v1.15.0
 [submodule "deps/3rd_party/jthread/jthread"]
-	path = deps/3rd_party/jthread/jthread
-	url = https://github.com/josuttis/jthread
-[submodule "deps/external/tb"]
-	path = deps/external/tb
-	url = https://github.com/ROCm/TransferBench.git
+        path = deps/3rd_party/jthread/jthread
+        url = https://github.com/josuttis/jthread
+        branch = master
 [submodule "deps/external/TransferBench"]
-	path = deps/external/TransferBench
-	url = https://github.com/ROCmSoftwarePlatform/TransferBench.git
+        path = deps/external/TransferBench
+        url = https://github.com/ROCm/TransferBench.git
+        branch = v1.61.00
 [submodule "deps/3rd_party/Catch2"]
-	path = deps/3rd_party/Catch2
-	url = https://github.com/catchorg/Catch2.git
+        path = deps/3rd_party/Catch2
+        url = https://github.com/catchorg/Catch2.git
+        branch = v3.7.1
 [submodule "deps/3rd_party/stacktrace"]
-	path = deps/3rd_party/stacktrace
-	url = https://github.com/boostorg/stacktrace.git
+        path = deps/3rd_party/stacktrace
+        url = https://github.com/boostorg/stacktrace.git
+        branch = boost-1.87.0
+
