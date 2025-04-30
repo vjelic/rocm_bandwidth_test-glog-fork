@@ -79,6 +79,12 @@ auto set_env_var(const std::string& var_name, const std::string& var_value, bool
 }
 
 
+auto unset_env_var(const std::string& var_name) -> i32_t
+{
+    return unsetenv(var_name.c_str());
+}
+
+
 auto is_tty() -> bool
 {
     return (isatty(STDOUT_FILENO) == 1);
@@ -187,6 +193,8 @@ auto split_str(const std::string& text, char delimiter) -> std::vector<std::stri
     for (std::string line; std::getline(token_stream, line, delimiter);) {
         tokens.emplace_back(line);
     }
+    if (text.back() == delimiter)
+        tokens.emplace_back("");
 
     return tokens;
 }
