@@ -215,7 +215,8 @@ auto command_plugin_list_traverse_detail(const std::string& plugin_filter, Plugi
         auto plugin_registered_name = wb_strings::to_upper_copy(plugin.plugin_get_name());
         if (!kBUILTIN_PLUGIN_NAMES.contains(plugin_registered_name)) {
             if ((plugin_filter != kALL_PLUGIN_NAMES) &&
-                (!plugin_registered_name.contains(wb_strings::to_upper_copy(plugin_filter)))) {
+                (!wb_strings::contains(plugin_registered_name, (wb_strings::to_upper_copy(plugin_filter))))) {
+                //(!plugin_registered_name.contains(wb_strings::to_upper_copy(plugin_filter)))) {
                 continue;
             }
 

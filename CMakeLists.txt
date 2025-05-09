@@ -25,20 +25,28 @@
 #
 cmake_minimum_required(VERSION 3.20)
 
+# Find git and set the GIT_EXECUTABLE variable (good practice, used by submodules)
+find_package(Git QUIET)
+if(NOT GIT_FOUND)
+    message(FATAL_ERROR ">> Git is required to build this project. 'git' not found! ")
+endif()
+set(CMAKE_GIT_EXECUTABLE ${GIT_EXECUTABLE} CACHE FILEPATH "Path to the Git executable.")
+
+
 # Build is not supported on Windows plaform
 if(WIN32)
-    message(FATAL_ERROR "Windows platfom is not supported!")
+    message(FATAL_ERROR "Windows platform is not supported!")
     return()
 endif()
 
 # Flag to enable / disable verbose output.
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-# Export compile commands for linters and autocompleters
+# Export compile commands for linters and auto-completers
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # C++ standard settings
-set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ Standard in use")
+set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ Standard in use")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INCLUDE_DIRECTORIES_BEFORE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -75,18 +83,21 @@ option(AMD_APP_BUILD_EXAMPLES               "Build examples"                    
 option(AMD_APP_BUILD_TESTS                  "Build unit tests"                                                                  OFF)
 option(AMD_APP_COMPILER_TRY_CLANG           "Give preference to 'Clang++' compiler if installed and requirements met"           ON)
 option(AMD_APP_LINKER_TRY_MOLD              "Give preference to 'Mold' linker (faster) if available"                            ON)
+option(AMD_APP_SUBMODULES_TRY_CHECKOUT      "Try to 'git checkout' submodules with 'required commit' (if needed)"               ON)
 option(AMD_APP_ROCM_BUILD_AUTO_DETECT       "Auto detect ROCm build environment"                                                ON)
-option(AMD_APP_ROCM_BUILD_PACKAGE           "Forces build/package under ROCm environment (if available: BUILD_AUTO_DETECT)"     OFF)
+option(AMD_APP_ROCM_BUILD_PACKAGE           "Force build/package under ROCm environment (if available: BUILD_AUTO_DETECT)"      OFF)
 option(AMD_APP_STANDALONE_BUILD_PACKAGE     "Build standalone package (not ROCm based)"                                         OFF)
 option(AMD_APP_ENGINEERING_BUILD_PACKAGE    "Build and create a BZ2 Engineering package (ROCm & Standalone are ignored)"        OFF)
+option(AMD_APP_DEBUG_BUILD_INFO             "Build messages/info (extra info for Developers)"                                   OFF)
 
 # Setup build utils
 include(${AMD_APP_CMAKE_DIRECTORY}/build_utils.cmake)
 
 #
-# Specify name of project to build, and validate requiments
+# Specify name of project to build, and validate requirements
 setup_build_version(AMD_TARGET_VERSION AMD_TARGET_VERSION_TEXT)
 set_variable_in_parent(AMD_WORK_BENCH_VERSION ${AMD_TARGET_VERSION})
+## Compiler is set dynamically (check_compiler_requirements()), so it must be prior to 'project()' or 'enable_language(CXX)'
 setup_cmake(AMD_TARGET_NAME AMD_WORK_BENCH_VERSION)
 
 ##
@@ -108,12 +119,22 @@ else()
 endif()
 set(AMD_PROJECT_VERSION_FULL "${AMD_PROJECT_VERSION_MAJOR}.${AMD_PROJECT_VERSION_MINOR}.${AMD_PROJECT_VERSION_PATCH}")
 
+#
 project(${AMD_TARGET_NAME}
     VERSION ${AMD_TARGET_VERSION_TEXT}
-    LANGUAGES CXX C
+    LANGUAGES CXX
     DESCRIPTION ${AMD_PROJECT_DESCRIPTION}
     HOMEPAGE_URL ${AMD_PROJECT_GITHUB_REPO}
 )
+setup_project()
+
+message(STATUS "4 >> CMAKE_CXX_COMPILER: " ${CMAKE_CXX_COMPILER})
+message(STATUS "4 >> CMAKE_CXX_COMPILER_ID: " ${CMAKE_CXX_COMPILER_ID})
+message(STATUS "4 >> CMAKE_CXX_COMPILER_VERSION: " ${CMAKE_CXX_COMPILER_VERSION})
+message(STATUS "4 >> CMAKE_CXX_COMPILER_FLAGS: " ${CMAKE_CXX_COMPILER_FLAGS})
+message(STATUS "4 >> CMAKE_CXX_FLAGS: " ${CMAKE_CXX_FLAGS})
+message(STATUS "4 >> CMAKE_LINKER_FLAGS: " ${CMAKE_EXE_LINKER_FLAGS})
+
 
 #
 ##  Note:
@@ -141,18 +162,15 @@ setup_rocm_auto_build_environment(AMD_APP_ROCM_BUILD_AUTO_DETECT AMD_APP_ROCM_BU
 
 #
 # Build Version/Type
-install(CODE "set(AMD_TARGET_INSTALL FALSE)")
+##install(CODE "set(AMD_TARGET_INSTALL FALSE)")
 set(AMD_PROJECT_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "Build Type" FORCE)
 set(AMD_APP_ROCM_BUILD_PACKAGE_INTERNAL ${AMD_APP_ROCM_BUILD_PACKAGE} CACHE BOOL "Is this a ROCm build (ON) or a Standalone (OFF)" FORCE)
 set(AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL ${AMD_TARGET_VERSION} CACHE STRING "Builtin Target version for libraries" FORCE)
-
 message(STATUS "[[ Building... Project: " ${CMAKE_PROJECT_NAME} " v." ${AMD_TARGET_VERSION_TEXT} " / " ${AMD_TARGET_VERSION} " {Build: " ${AMD_PROJECT_BUILD_TYPE} " | ROCm Build/Package Env: " ${AMD_APP_ROCM_BUILD_PACKAGE} "} ]] ...")
 message(STATUS "  >> Project will be packaged with: " '${AMD_PROJECT_VERSION_FULL}' " timestamp ...")
 
-setup_project()
 add_custom_target(${AMD_TARGET_NAME}_all ALL)
 setup_default_build_options()
-check_compiler_requirements(AMD_TARGET_NAME)
 check_builtin_plugin_set()
 check_os_build_definitions()
 add_build_definitions()

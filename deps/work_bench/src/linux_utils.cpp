@@ -365,7 +365,8 @@ auto get_distro_version() -> std::string
 
     //  Note:   Check if the line contains the key
     auto is_entry_key = [](const std::string& line, const std::string& key) -> bool {
-        return line.contains(key);
+        return wb_strings::contains(line, key);
+        // return line.contains(key);
     };
 
     //  Note:   Get the value of the entry

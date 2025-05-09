@@ -161,6 +161,7 @@ Plugin_t::Plugin_t(const std::string& plugin_name, const PluginFunctionality_t& 
     m_handler = 0;
     m_library_path = plugin_name;
     m_functionality = plugin_functionality;
+    m_engine_version = PluginEngineVersion_t::VERSION_0_0;
 }
 
 

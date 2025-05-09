@@ -171,7 +171,7 @@ auto process_args(const WordList_t& args) -> int32_t
                 subcommands.emplace_back(current_subcommand.value(), current_subcommand_args);
                 //*current_subcommand
             }
-            current_subcommand == std::nullopt;
+            current_subcommand = std::nullopt;
             current_subcommand_args = {};
         } else if (current_subcommand.has_value()) {
             // Save the arguments for the current subcommand

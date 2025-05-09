@@ -51,7 +51,6 @@
 #define AMD_WORK_BENCH_CONCEPTS_HPP
 
 #include <concepts>
-#include <format>
 #include <memory>
 
 

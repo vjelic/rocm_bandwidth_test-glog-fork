@@ -108,7 +108,7 @@ auto open_url(const std::string& url) -> void;
  *  Note: std::holds_alternative returns a boolean, while std::get_if returns a pointer (or nullptr).
  */
 template<typename Tp, typename... VariantTp>
-[[nodiscard]] Tp get_or(const std::variant<VariantTp...>& variant, Tp default_value)
+[[nodiscard]] auto get_or(const std::variant<VariantTp...>& variant, Tp default_value) -> Tp
 {
     const Tp value = std::get_if<Tp>(&variant);
     if (value != nullptr) {
@@ -235,8 +235,14 @@ auto to_lower_copy(std::string text) -> std::string;
 auto to_upper(std::string& text) -> void;
 auto to_upper_copy(std::string text) -> std::string;
 
+auto contains_ignore_case(std::string_view left, std::string_view right) -> bool;
+auto equals_ignore_case(std::string_view left, std::string_view right) -> bool;
+
 auto to_string(u128_t text) -> std::string;
 auto to_string(i128_t text) -> std::string;
+
+auto contains(std::string_view text, std::string_view substr) -> bool;
+auto contains(std::string_view text, char substr) -> bool;
 
 
 }    // namespace amd_work_bench::utils::strings
@@ -246,7 +252,7 @@ namespace amd_work_bench::utils::memory
 {
 
 template<typename Tp, typename Td>
-auto wrap_in_unique(Tp* ptr_p, Td dtr_d)
+auto wrap_in_unique(Tp* ptr_p, Td dtr_d) -> std::unique_ptr<Tp, Td>
 {
     return std::unique_ptr<Tp, Td>{ptr_p, std::move(dtr_d)};
 }
@@ -260,7 +266,7 @@ class AutoResetBase_t
     public:
         AutoResetBase_t() = default;
         virtual ~AutoResetBase_t() = default;
-        virtual void reset() = 0;
+        virtual auto reset() -> void = 0;
 
     private:
 };
@@ -330,7 +336,7 @@ class AutoReset_t : public details::AutoResetBase_t
         bool m_is_valid{true};
         Tp m_value{};
 
-        void reset() override
+        auto reset() -> void override
         {
             if constexpr (requires { m_value.reset(); }) {
                 m_value.reset();
@@ -438,7 +444,7 @@ class ScopeGuard_t
 
         ScopeGuard_t& operator=(ScopeGuard_t&&) = delete;
 
-        void release()
+        auto release() -> void
         {
             this->m_is_active = false;
         }
@@ -454,7 +460,7 @@ enum class ScopeGuardOnExit_t
 };
 
 template<typename Tp>
-constexpr ScopeGuard_t<Tp> operator+(ScopeGuardOnExit_t, Tp&& func)
+constexpr auto operator+(ScopeGuardOnExit_t, Tp&& func) -> ScopeGuard_t<Tp>
 {
     return ScopeGuard_t<Tp>(std::forward<Tp>(func));
 }

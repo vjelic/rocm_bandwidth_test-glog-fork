@@ -57,7 +57,7 @@
 #include <awb/logger.hpp>
 
 #include <filesystem>
-#include <format>
+// #include <format>
 #include <iostream>
 
 
@@ -67,6 +67,7 @@ namespace amd_work_bench::plugin::transferbench
 ViewTransferBench_t::ViewTransferBench_t() : DataViewBase_t::Window_t("View.TransferBench")
 {
     EventDataSourceDeleted::subscribe(this, [this](const auto* data_source) {
+        std::ignore = (this);
         std::ignore = data_source;
         // m_task_holder.get_progress_tracker();
     });

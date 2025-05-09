@@ -90,7 +90,7 @@
 
 // clang-format off
 #if defined(__has_include)
-    #if (__cplusplus >= 202002L) && (__has_include(<format>)) 
+    #if ((__has_include(<format>) && (__cplusplus >= 202002L) && ((__cpp_lib_format) && (__cpp_lib_format >= 201907L))))
         #include <format>
 
         namespace amd_fmt = std;
@@ -137,7 +137,8 @@
     *   #define __cpp_lib_stacktrace 202011L 
     *   //|| defined(__cpp_lib_stacktrace)
     */
-    #if (__cplusplus >= 202302L) && (__has_include(<stacktrace>))
+    //#if (__cplusplus >= 202302L) && (__has_include(<stacktrace>))
+    #if ((__has_include(<stacktrace>) && (__cpp_lib_stacktrace && (__cpp_lib_stacktrace >= 202011L))))
         #include <stacktrace>
 
         namespace amd_stacktrace {

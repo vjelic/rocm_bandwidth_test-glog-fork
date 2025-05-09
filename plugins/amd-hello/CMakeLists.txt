@@ -24,7 +24,7 @@
 
 #
 cmake_minimum_required(VERSION 3.20)
-set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ Standard in use")
+set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ Standard in use")
 
 # TODO: Check if this is needed
 #         LIBRARIES LLVMDemangle

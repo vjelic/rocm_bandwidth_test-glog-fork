@@ -124,7 +124,8 @@ auto open_url(const std::string& url) -> void
     }
 
     auto tmp_url = url;
-    if (!tmp_url.contains("://")) {
+    // if (!tmp_url.contains("://")) {
+    if (!wb_strings::contains(tmp_url, "://")) {
         tmp_url = ("http://" + tmp_url);
     }
     wb_linux::execute_command({"xdg-open", tmp_url});
@@ -266,6 +267,16 @@ auto equals_ignore_case(std::string_view left, std::string_view right) -> bool
     return std::equal(left.begin(), left.end(), right.begin(), right.end(), [](char character_a, char character_b) {
         return std::tolower(character_a) == std::tolower(character_b);
     });
+}
+
+auto contains(std::string_view text, std::string_view substr) -> bool
+{
+    return (text.find(substr) != std::string_view::npos);
+}
+
+auto contains(std::string_view text, char substr) -> bool
+{
+    return (text.find(substr) != std::string_view::npos);
 }
 
 

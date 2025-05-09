@@ -48,6 +48,9 @@ function(setup_rocm_auto_build_environment is_auto_detect_rocm_build is_rocm_bui
         if(DEFINED ENV{ROCM_PATH})
             message(STATUS "  >> ROCM_PATH is set. ROCm build package enabled and using: '$ENV{ROCM_PATH}'")
             set(ROCM_PATH "$ENV{ROCM_PATH}" CACHE STRING "ROCm install directory")
+        elseif(DEFINED ENV{ROCM_INSTALL_PATH})
+            message(STATUS "  >> ROCM_INSTALL_PATH is set. ROCm build package enabled and using: '$ENV{ROCM_INSTALL_PATH}'")
+            set(ROCM_PATH "$ENV{ROCM_INSTALL_PATH}" CACHE STRING "ROCm install directory")
         else()
             message(STATUS "  >> ROCM_PATH is not set. ROCm build package will be set to: '${ROCM_DEFAULT_PATH}'")
             set(ROCM_PATH ${ROCM_DEFAULT_PATH} CACHE STRING "ROCm install directory")
@@ -85,7 +88,7 @@ function(setup_build_version version_num version_text)
 endfunction()
 
 function(setup_project)
-    enable_language(C CXX)
+    enable_language(CXX C)
     set(PROJECT_MAIN_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" PARENT_SCOPE)
 endfunction()
 
@@ -111,6 +114,7 @@ function(has_minimum_compiler_version_for_standard cpp_standard compiler_id comp
         endif()
     endif()
 
+    ## Dynamically passed variable (argument), explicitly deref the variable for clarity
     if (${compiler_version} VERSION_LESS ${COMPILER_MINIMUM_VERSION_FOR_FULL_SUPPORT})
         set(${result} FALSE PARENT_SCOPE)
     else()
@@ -118,17 +122,31 @@ function(has_minimum_compiler_version_for_standard cpp_standard compiler_id comp
     endif()
 endfunction()
 
-function(check_default_compiler_requirements result)
+function(try_clang_default_compiler_requirements compiler_requirement_result)
+    ##  Check if we are able to use Lightning (Clang++) as default compiler
+    ##  Note:   If this condition is met, we used rocm_clang_toolchain.cmake and the toolchain was already
+    ##          checked and set up.
+    if(IS_LIGHTNING_CLANG_DEFAULT_COMPILER AND ROCM_CLANG_TOOLCHAIN_USED)
+        message(STATUS ">> ROCm 'Lightning Clang++' Toolchain: was already set externally (rocm_clang_toolchain.cmake) ...")
+        set(${compiler_requirement_result} TRUE PARENT_SCOPE)
+        return()
+    endif()
+
+    ##
     set(HAS_DEFAULT_COMPILER_REQUIREMENTS FALSE)
     if(AMD_APP_COMPILER_TRY_CLANG)
         set(CLANG_COMPILER_MAJOR_VERSION_REQUIRED "19")
         set(CLANG_COMPILER_MINOR_VERSION_REQUIRED "0")
         set(CLANG_COMPILER_REVISION_VERSION_REQUIRED "0")
         set(CLANG_COMPILER_MINIMUM_VERSION_REQUIRED "${CLANG_COMPILER_MAJOR_VERSION_REQUIRED}.${CLANG_COMPILER_MINOR_VERSION_REQUIRED}.${CLANG_COMPILER_REVISION_VERSION_REQUIRED}")
+
+        if(DEFINED ENV{ROCM_INSTALL_PATH})
+            set(ROCM_INSTALL_LLVM_BIN_PATH "$ENV{ROCM_INSTALL_PATH}/lib/llvm/bin/")
+        endif()
         set(ROCM_LLVM_BIN_PATH  "/opt/rocm/lib/llvm/bin/")
-        message(WARNING ">> Trying to setup 'Clang++' as default compiler (COMPILER_TRY_CLANG=ON)")
+        message(WARNING ">> Trying to setup 'Lightning Clang++' as default compiler (COMPILER_TRY_CLANG=ON)")
         message(STATUS "  >> Minimum version required for setting: 'v${CLANG_COMPILER_MINIMUM_VERSION_REQUIRED}'")
-        find_program(CLANG_COMPILER_CXX clang++ HINTS ${CMAKE_CXX_COMPILER_PATH} ${CMAKE_CXX_COMPILER} ${ROCM_LLVM_BIN_PATH})
+        find_program(CLANG_COMPILER_CXX NAMES clang++ clang HINTS ${ROCM_INSTALL_LLVM_BIN_PATH} ${ROCM_LLVM_BIN_PATH} ${CMAKE_CXX_COMPILER_PATH} ${CMAKE_CXX_COMPILER})
         if(CLANG_COMPILER_CXX)
             execute_process( 
                 COMMAND ${CLANG_COMPILER_CXX} -dumpversion
@@ -142,6 +160,7 @@ function(check_default_compiler_requirements result)
                 list(GET CLANG_COMPILER_VERSION_COMPONENTS 0 CLANG_COMPILER_VERSION_MAJOR)
                 list(GET CLANG_COMPILER_VERSION_COMPONENTS 1 CLANG_COMPILER_VERSION_MINOR)
                 list(GET CLANG_COMPILER_VERSION_COMPONENTS 2 CLANG_COMPILER_VERSION_REVISION)
+                set(CLANG_COMPILER_FULL_VERSION "${CLANG_COMPILER_VERSION_MAJOR}.${CLANG_COMPILER_VERSION_MINOR}.${CLANG_COMPILER_VERSION_REVISION}")
                 ## 
                 if(CLANG_COMPILER_VERSION_MAJOR GREATER_EQUAL ${CLANG_COMPILER_MAJOR_VERSION_REQUIRED} AND 
                    CLANG_COMPILER_VERSION_MINOR GREATER_EQUAL ${CLANG_COMPILER_MINOR_VERSION_REQUIRED})
@@ -152,17 +171,17 @@ function(check_default_compiler_requirements result)
             endif()
             
             if(NOT CLANG_COMPILER_VERSION_RESULT)
-                message(WARNING ">> 'Clang++' compiler v'${CLANG_COMPILER_VERSION}' is not as default compiler! Minimum version required: 'v${CLANG_COMPILER_MINIMUM_VERSION_REQUIRED}'")
+                message(WARNING ">> 'Clang++' compiler v'${CLANG_COMPILER_VERSION}' is not set as default compiler! Minimum version required: 'v${CLANG_COMPILER_MINIMUM_VERSION_REQUIRED}'")
                 message(STATUS  "  >> falling back default compiler 'g++' and requirements...")
             else()
                 set(HAS_DEFAULT_COMPILER_REQUIREMENTS TRUE)
                 get_filename_component(DEFAULT_COMPILER_DIRECTORY_NAME "${CLANG_COMPILER_CXX}" DIRECTORY)
                 set(CLANG_COMPILER_C "${DEFAULT_COMPILER_DIRECTORY_NAME}/clang")
-                set(CMAKE_CXX_COMPILER ${CLANG_COMPILER_CXX})
-                set(CMAKE_C_COMPILER ${CLANG_COMPILER_C})
-                #set(CMAKE_CXX_COMPILER_ID "Clang")
-                #set(CMAKE_C_COMPILER_ID "Clang")
-                message(STATUS "  >> Setting compiler to: '${CMAKE_CXX_COMPILER}' v${CLANG_COMPILER_VERSION_MAJOR}.${CLANG_COMPILER_VERSION_MINOR}.${CLANG_COMPILER_VERSION_REVISION}")
+                set(CMAKE_CXX_COMPILER "${CLANG_COMPILER_CXX}")
+                set(CMAKE_CXX_COMPILER "${CLANG_COMPILER_CXX}" CACHE PATH "C++ Compiler" FORCE PARENT_SCOPE)
+                set(CMAKE_C_COMPILER "${CLANG_COMPILER_C}")
+                set(CMAKE_C_COMPILER "${CLANG_COMPILER_C}" CACHE PATH "C Compiler" FORCE PARENT_SCOPE)
+                message(STATUS "  >> Setting compiler to: '${CLANG_COMPILER_FULL_VERSION}")
             endif()
 
         else()
@@ -170,42 +189,91 @@ function(check_default_compiler_requirements result)
         endif()
 
         if (HAS_DEFAULT_COMPILER_REQUIREMENTS)
-            set(${result} TRUE PARENT_SCOPE)
+            set(${compiler_requirement_result} TRUE PARENT_SCOPE)
         else()
-            set(${result} FALSE PARENT_SCOPE)
+            set(${compiler_requirement_result} FALSE PARENT_SCOPE)
         endif()
-    endif()        
+    endif()
 endfunction()
 
 function(check_compiler_requirements component_name)
-    check_default_compiler_requirements(WAS_TRY_CLANG_DEFAULT_COMPILER)
-    if(WAS_TRY_CLANG_DEFAULT_COMPILER)
-        message(STATUS ">> COMPILER_TRY_CLANG=ON: Default compiler already set to 'Clang++' ...")
-        return()
+    ##  We need to make sure we have C++ enabled, or we get errors like:
+    ##  'check_compiler_flag: CXX: needs to be enabled before use'
+    get_property(project_enabled_languages GLOBAL PROPERTY ENABLED_LANGUAGES)
+    if(NOT project_enabled_languages OR NOT "CXX" IN_LIST project_enabled_languages)
+        enable_language(CXX)
     endif()
 
-    if(CMAKE_CXX_STANDARD EQUAL 23)
-        #set(GCC_COMPILER_MINIMUM_VERSION "13.0.0")
-        set(GCC_COMPILER_MINIMUM_VERSION "12.3.0")
-        set(CLANG_COMPILER_MINIMUM_VERSION "17.0.0")
-    elseif(CMAKE_CXX_STANDARD EQUAL 20)
-        set(GCC_COMPILER_MINIMUM_VERSION "11.0.0")
-        set(CLANG_COMPILER_MINIMUM_VERSION "16.0.0")
-    elseif(CMAKE_CXX_STANDARD EQUAL 17)
-        set(GCC_COMPILER_MINIMUM_VERSION "10.0.0")
-        set(CLANG_COMPILER_MINIMUM_VERSION "15.0.0")
+    ##  Check if we are able to use Lightning (Clang19++) as default compiler
+    if(NOT DEFINED IS_LIGHTNING_CLANG_DEFAULT_COMPILER)
+        try_clang_default_compiler_requirements(IS_TRY_CLANG_DEFAULT_COMPILER)
+        if(IS_TRY_CLANG_DEFAULT_COMPILER)
+            set(IS_LIGHTNING_CLANG_DEFAULT_COMPILER BOOL TRUE)
+            set(IS_LIGHTNING_CLANG_DEFAULT_COMPILER BOOL TRUE PARENT_SCOPE)
+            message(STATUS ">> COMPILER_TRY_CLANG=ON: Default compiler already set to 'Lightning Clang++' ...")
+        else()
+        set(IS_LIGHTNING_CLANG_DEFAULT_COMPILER BOOL FALSE)
+            set(IS_LIGHTNING_CLANG_DEFAULT_COMPILER BOOL FALSE PARENT_SCOPE)
+        endif()
     endif()
 
-    if(NOT GCC_COMPILER_MINIMUM_VERSION OR NOT CLANG_COMPILER_MINIMUM_VERSION)
-        message(FATAL_ERROR ">> CXX Standard '${CMAKE_CXX_STANDARD}' not supported!")
+    ##  Check if the compiler is compatible with the C++ standard.
+    ##  Note:   Minimum required is ${CMAKE_CXX_STANDARD} = 20, but we check for 23, 20, and 17.
+    if(NOT DEFINED IS_COMPILER_SUPPORTS_CXX23_STANDARD OR NOT DEFINED IS_COMPILER_SUPPORTS_CXX20_STANDARD OR NOT DEFINED IS_COMPILER_SUPPORTS_CXX17_STANDARD)
+        include(CheckCXXCompilerFlag)
+        message(STATUS ">> Checking Compiler: '${CMAKE_CXX_COMPILER}' for C++ standard ...")
+
+        ## Just to have independent checks/variables
+        set(CHECK_CMAKE_CXX_STANDARD 23)
+        if(NOT DEFINED IS_COMPILER_SUPPORTS_CXX23_STANDARD)
+            set(IS_COMPILER_SUPPORTS_CHECK "IS_COMPILER_SUPPORTS_CXX${CHECK_CMAKE_CXX_STANDARD}_STANDARD")
+            check_cxx_compiler_flag("-std=c++${CHECK_CMAKE_CXX_STANDARD}" COMPILER_SUPPORTS_CXX23_STANDARD)
+            if(COMPILER_SUPPORTS_CXX23_STANDARD)
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL TRUE)
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL TRUE PARENT_SCOPE)
+                developer_status_message("DEVEL" " >> Compiler: ${CMAKE_CXX_COMPILER} supports CXX Standard '${CHECK_CMAKE_CXX_STANDARD}' ...")
+            else()
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL FALSE)
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL FALSE PARENT_SCOPE)
+            endif()
+        endif()
+
+        set(CHECK_CMAKE_CXX_STANDARD 20)
+        if(NOT DEFINED IS_COMPILER_SUPPORTS_CXX20_STANDARD)
+            set(IS_COMPILER_SUPPORTS_CHECK "IS_COMPILER_SUPPORTS_CXX${CHECK_CMAKE_CXX_STANDARD}_STANDARD")
+            check_cxx_compiler_flag("-std=c++${CHECK_CMAKE_CXX_STANDARD}" COMPILER_SUPPORTS_CXX20_STANDARD)
+            if(COMPILER_SUPPORTS_CXX20_STANDARD)
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL TRUE)
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL TRUE PARENT_SCOPE)
+                developer_status_message("DEVEL" "  >> Compiler: ${CMAKE_CXX_COMPILER} supports CXX Standard '${CHECK_CMAKE_CXX_STANDARD}' ...")
+            else()
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL FALSE)
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL FALSE PARENT_SCOPE)
+            endif()
+        endif()
+
+        set(CHECK_CMAKE_CXX_STANDARD 17)
+        if(NOT DEFINED IS_COMPILER_SUPPORTS_CXX17_STANDARD)
+            set(IS_COMPILER_SUPPORTS_CHECK "IS_COMPILER_SUPPORTS_CXX${CHECK_CMAKE_CXX_STANDARD}_STANDARD")
+            check_cxx_compiler_flag("-std=c++${CHECK_CMAKE_CXX_STANDARD}" COMPILER_SUPPORTS_CXX17_STANDARD)
+            if(COMPILER_SUPPORTS_CXX17_STANDARD)
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL TRUE)
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL TRUE PARENT_SCOPE)
+                developer_status_message("DEVEL" "  >> Compiler: ${CMAKE_CXX_COMPILER} supports CXX Standard '${CHECK_CMAKE_CXX_STANDARD}' ...")
+            else()
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL FALSE)
+                set(${IS_COMPILER_SUPPORTS_CHECK} BOOL FALSE PARENT_SCOPE)
+            endif()
+        endif()
     endif()
 
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS ${GCC_COMPILER_MINIMUM_VERSION})
-        message(FATAL_ERROR ">> ${${component_name}} requires GCC ${GCC_COMPILER_MINIMUM_VERSION} or newer.")
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS ${CLANG_COMPILER_MINIMUM_VERSION})
-        message(FATAL_ERROR ">> ${${component_name}} requires Clang ${CLANG_COMPILER_MINIMUM_VERSION} or newer.")
-    elseif(NOT(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
-        message(FATAL_ERROR ">> ${${component_name}} only supports 'GCC' or 'Clang'. The actual compiler '${CMAKE_CXX_COMPILER_ID}' is not supported!")
+    ## Does it support the project C++ standard, ${CMAKE_CXX_STANDARD} = 20?
+    set(IS_COMPILER_SUPPORTS_MIN_STANDARD "${IS_COMPILER_SUPPORTS_CXX${CMAKE_CXX_STANDARD}_STANDARD}")
+    if(NOT IS_COMPILER_SUPPORTS_MIN_STANDARD)
+        message(FATAL_ERROR ">> Compiler: '${CMAKE_CXX_COMPILER}' v'${CMAKE_CXX_COMPILER_VERSION}' doesn't support CXX Standard '${CMAKE_CXX_STANDARD}'! \n"
+                             "  >> Project: '${${component_name}}' can't be built ...")
+    else()
+        message(STATUS ">> Compiler: '${CMAKE_CXX_COMPILER}' v'${CMAKE_CXX_COMPILER_VERSION}' supports the required CXX Standard '${CMAKE_CXX_STANDARD}' ...")
     endif()
 endfunction()
 
@@ -316,95 +384,109 @@ function(add_executable target_name)
     adjust_ide_support_target(${target_name})
 endfunction()
 
-function(check_dependency_system_library package_name library_name required_version)
-    if(required_version)
-        find_package(${package_name} ${required_version} QUIET)
+function(verify_dependency_support module_name module_path commit_hash)
+    message(STATUS ">> Verifying submodule state: '${module_name}' ...")
+    set(MODULE_ABSOLUTE_PATH "")
+    if(IS_ABSOLUTE "${module_path}")
+        set(MODULE_ABSOLUTE_PATH "${module_path}")
     else()
-        find_package(${package_name} REQUIRED)
+        set(MODULE_ABSOLUTE_PATH "${CMAKE_SOURCE_DIR}/${module_path}")
     endif()
 
-    if(${package_name}_FOUND)
-        message(STATUS ">> check_dependency_system_library(): Dependency Check; '${package_name}' v${${package_name}_VERSION} was found ...")
-        ##set(${library_name} ${${package_name}_LIBRARIES} PARENT_SCOPE)
-        ##set(${library_name}_INCLUDE_DIRS ${${package_name}_INCLUDE_DIRS} PARENT_SCOPE)
+    message(STATUS ">> Submodule path: [${module_path}] '${MODULE_ABSOLUTE_PATH}' / ${CMAKE_SOURCE_DIR}} ...")
+
+    if(NOT EXISTS "${MODULE_ABSOLUTE_PATH}/.git")
+        message(FATAL_ERROR ">> Submodule directory seems invalid; Missing '.git' directory. : '${module_name}' at: '${MODULE_ABSOLUTE_PATH}' ...")
+    elseif(NOT EXISTS "${MODULE_ABSOLUTE_PATH}/CMakeLists.txt")
+        message(FATAL_ERROR ">> Submodule directory '${module_name}' found at: '${MODULE_ABSOLUTE_PATH}', without a 'CMakeLists.txt' ...")
     else()
-        message(WARNING ">> check_dependency_system_library(): Dependency Check; '${package_name}' v${${package_name}_VERSION} not found ...")
-        set(USE_LOCAL_${library_name} OFF PARENT_SCOPE)
-    endif()
-endfunction()
+        message(STATUS ">> Submodule directory '${module_name}' and 'CMakeLists.txt' found at: ${MODULE_ABSOLUTE_PATH}")
+        message(STATUS "  >> Verifying commit/tag against required reference: '${module_name}' : '${commit_hash}' ...")
 
-function(declare_fetch_content library_name git_repo_url git_commit_hash source_directory)
-    if (NOT library_name OR NOT git_repo_url OR NOT git_commit_hash)
-        message(FATAL_ERROR ">> declare_fetch_content(): Missing required parameters: '${library_name}'")
-    endif()
+        ##  Get the commit hash even for tags
+        ##  Run from top-level where .gitmodules file exists
+        execute_process(
+          COMMAND ${CMAKE_GIT_EXECUTABLE} rev-parse "${commit_hash}^{commit}"
+          WORKING_DIRECTORY "${MODULE_ABSOLUTE_PATH}"
+          OUTPUT_VARIABLE OUTPUT_EXPECTED_HASH
+          OUTPUT_STRIP_TRAILING_WHITESPACE
+          ERROR_QUIET
+          RESULT_VARIABLE RESULT_GIT_RESOLVE
+        )
+        if(NOT RESULT_GIT_RESOLVE EQUAL 0)
+            message(FATAL_ERROR ">> Could not resolve required Git reference: '${module_name}' : '${commit_hash}' ...")
+        endif()
+        message(STATUS ">> Required Git reference: '${module_name}' : '${commit_hash}' resolves to commit: '${OUTPUT_EXPECTED_HASH}'")
 
-    if (NOT DEFINED ${library_name}_GIT_REPO_URL)
-        set(${library_name}_GIT_REPO_URL ${git_repo_url} CACHE STRING "Git repository URL for ${library_name}" FORCE)
-    endif()
-    if (NOT DEFINED ${library_name}_GIT_COMMIT_HASH)
-        set(${library_name}_GIT_COMMIT_HASH ${git_commit_hash} CACHE STRING "Git commit hash for ${library_name}" FORCE)
-    endif()
-    if (NOT DEFINED ${library_name}_SOURCE_DIR AND source_directory)
-        set(${library_name}_SOURCE_DIR ${source_directory} CACHE STRING "Source directory for ${library_name}" FORCE)
-    endif()
+        ##  Get the current commit hash in the submodule directory
+        execute_process(
+          COMMAND ${CMAKE_GIT_EXECUTABLE} rev-parse HEAD
+          WORKING_DIRECTORY "${MODULE_ABSOLUTE_PATH}"
+          OUTPUT_VARIABLE OUTPUT_CURRENT_HASH
+          OUTPUT_STRIP_TRAILING_WHITESPACE
+          ERROR_QUIET
+          RESULT_VARIABLE RESULT_GIT_CURRENT
+        )
+        if(NOT RESULT_GIT_CURRENT EQUAL 0)
+            message(FATAL_ERROR ">> Could not determine current Git commit hash in submodule directory: '${module_name}' at: '${MODULE_ABSOLUTE_PATH}'.")
+        endif()
+        message(STATUS "Submodule '${module_name}' is currently at commit: ${OUTPUT_CURRENT_HASH}")
 
-    #
-    ## Setup fetch content args
-    #GIT_REPOSITORY "${${library_name}_GIT_REPO_URL}"
-    #GIT_TAG "${${library_name}_GIT_COMMIT_HASH}"
-    set(fetch_args
-        ${library_name}
-        GIT_REPOSITORY "${git_repo_url}"
-        GIT_TAG "${git_commit_hash}"
-    )
+        ##  Compare the hashes
+        if(NOT "${OUTPUT_CURRENT_HASH}" STREQUAL "${OUTPUT_EXPECTED_HASH}")
+            ##  Hashes DO NOT MATCH
+            set(MSG_PREFIX ">> Submodule '${module_name}' at '${MODULE_ABSOLUTE_PATH}' is at the wrong commit: ('${OUTPUT_CURRENT_HASH}'). \n")
+            #   NOTE:   'attempt auto checkout'
+            if(AMD_APP_SUBMODULES_TRY_CHECKOUT)
+                message(STATUS ">> Trying to 'checkout' the submodule '${module_name}' reference: '${OUTPUT_EXPECTED_HASH}' at: '${MODULE_ABSOLUTE_PATH}' ...")
 
-    #   If source_directory was provided, check if it exists
-    if(source_directory)
-        if(EXISTS "${source_directory}/.git")
-            #   Validate the commit hash required
-            execute_process(
-                COMMAND git -C "${source_directory}" rev-parse HEAD
-                OUTPUT_VARIABLE output_git_commit_hash
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-                RESULT_VARIABLE result_git_commit_hash
-            )
-            if(result_git_commit_hash EQUAL 0 AND output_git_commit_hash STREQUAL "${git_commit_hash}")
-                message(STATUS ">> declare_fetch_content(): Reusing existing; '${library_name}' @commit: '${git_commit_hash}' available at: '${source_directory}' ...")
-            else()
-                message(STATUS ">> declare_fetch_content(): Resetting existing; '${library_name}' @commit: '${git_commit_hash}' at: '${source_directory}' ...")
                 execute_process(
-                    COMMAND git -C "${source_directory}" reset --hard ${git_commit_hash}
-                    COMMAND git -C "${source_directory}" clean -fd
-                    RESULT_VARIABLE result_git_reset_hash
+                  COMMAND ${CMAKE_GIT_EXECUTABLE} checkout "${commit_hash}"
+                  WORKING_DIRECTORY "${MODULE_ABSOLUTE_PATH}"
+                  RESULT_VARIABLE RESULT_GIT_CHECKOUT
+                  ERROR_VARIABLE ERROR_GIT_CHECKOUT
+                  OUTPUT_QUIET
+                  ERROR_STRIP_TRAILING_WHITESPACE
                 )
-                if(NOT result_git_reset_hash EQUAL 0)
-                    message(WARNING ">> declare_fetch_content(): Failed to reset '${library_name}' @commit: '${git_commit_hash}' at: '${source_directory}' . Cleaning it up...")
-                    file(REMOVE_RECURSE "${source_directory}")
-                    file(MAKE_DIRECTORY "${source_directory}")
+                if(NOT RESULT_GIT_CHECKOUT EQUAL 0)
+                    message(FATAL_ERROR ">> Could not 'checkout' the submodule '${module_name}' reference: '${commit_hash}'. Error: '${ERROR_GIT_CHECKOUT}'")
+                else()
+                    message(STATUS ">> Submodule '${module_name}' reference '${commit_hash}' successfully checked out. \n")
+                    ##  Re-run the script to verify the commit hash, just in case
+                    ##  Get the current commit hash in the submodule directory
+                    execute_process(
+                        COMMAND ${CMAKE_GIT_EXECUTABLE} rev-parse HEAD
+                        WORKING_DIRECTORY "${MODULE_ABSOLUTE_PATH}"
+                        OUTPUT_VARIABLE OUTPUT_NEW_CHECKED_HASH
+                        OUTPUT_STRIP_TRAILING_WHITESPACE
+                        ERROR_QUIET
+                        RESULT_VARIABLE RESULT_GIT_NEW_CHECKOUT
+                    )
+                    if(NOT RESULT_GIT_NEW_CHECKOUT EQUAL 0 OR NOT "${OUTPUT_NEW_CHECKED_HASH}" STREQUAL "${OUTPUT_EXPECTED_HASH}")
+                        message(FATAL_ERROR ">> Submodule '${module_name}' still not at required commit '${OUTPUT_EXPECTED_HASH}' after rechecking it. \n"
+                                            "  >> Current commit is: '${OUTPUT_NEW_CHECKED_HASH}' ...")
+                    endif()
+                    message(STATUS ">> Submodule '${module_name}' is now at the required commit: '${OUTPUT_NEW_CHECKED_HASH}' [auto-checked out] ...")
                 endif()
+            else()
+                message(FATAL_ERROR "${MSG_PREFIX} \n"
+                                    "  >> The required reference is: '${commit_hash}', and it needs to be 'checkout' manually. \n")
             endif()
-        elseif(EXISTS "${source_directory}")
-            message(WARNING ">> declare_fetch_content(): Cleaning up existing: '${source_directory}' . Not a 'git repo' ...")
-            file(REMOVE_RECURSE "${source_directory}")
-            file(MAKE_DIRECTORY "${source_directory}")
         else()
-            message(STATUS ">> declare_fetch_content(): Creating new source directory: '${source_directory}' ...")
-            file(MAKE_DIRECTORY "${source_directory}")
+            #   Hashes MATCH
+            message(STATUS ">> Submodule '${module_name}' commit matches required reference: '${commit_hash}' ...")
         endif()
 
-        #   Append source_directory to fetch content args
-        list(APPEND fetch_args SOURCE_DIR "${source_directory}")
-
-    else()
-        #   Uses the default '${CMAKE_BINARY_DIR}/_deps/${library_name}-src' directory
-        message(STATUS ">> declare_fetch_content(): Using 'default FetchContent directory' for; '${library_name}' @commit: '${git_commit_hash}' ...")
+        ##  Checks/add module subdirectory if all checks pass
+        ##  Create a unique binary dir based on module name to avoid conflicts using a sanitized name
+        #string(MAKE_C_IDENTIFIER "${module_name}" MODULE_NAME_C_ID)
+        #set(SUBMODULE_BINARY_DIR "${CMAKE_BINARY_DIR}/${MODULE_NAME_C_ID}_external")
+        #add_subdirectory("${MODULE_ABSOLUTE_PATH}" "${SUBMODULE_BINARY_DIR}")
+        set(${module_name}_MODULE_ADDED TRUE PARENT_SCOPE)
+        message(STATUS ">> Adding submodule subdirectory: '${module_name}' at: '${MODULE_ABSOLUTE_PATH}' ...")
+        message(STATUS ">> Submodule '${module_name}' successfully added ...")
     endif()
-
-    #   Finally FetchContent_Declare
-    FetchContent_Declare(${fetch_args})
-    message(STATUS ">> declare_fetch_content(): FetchContent for: '${library_name}' @commit: '${git_commit_hash}' -> downloading to: '${source_directory}' ...")
 endfunction()
-
 
 #
 # Note: All macro definitions here
@@ -454,17 +536,35 @@ macro(setup_cmake target_name target_version)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "Set position independent code for all targets ..." FORCE)
     message(STATUS ">> Configuring CMake to use the following build tools...")
 
+    # Check if the compiler is compatible with the C++ standard.
+    if(NOT DEFINED IS_LIGHTNING_CLANG_DEFAULT_COMPILER)
+        check_compiler_requirements(${target_name})
+    endif()
+
     #
     find_program(CCACHE_PATH ccache)
     find_program(NINJA_PATH ninja)
     find_program(LD_LLD_PATH ld.lld)
     find_program(LD_MOLD_PATH ld.mold)
 
-    if(CCACHE_PATH)
-        set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PATH})
-        set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PATH})
-    else()
-        message(WARNING ">> CCache was not found!")
+    if(NOT AMD_APP_COMPILER_TRY_CLANG AND NOT IS_LIGHTNING_CLANG_DEFAULT_COMPILER)
+        if(CCACHE_PATH)
+            set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PATH})
+            set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PATH})
+        else()
+            message(WARNING ">> CCache was not found!")
+        endif()
+
+    #   If we are using 'Lightning Clang', we want to use its standard library,
+    #   instead of the default 'gcc' ('-stdlib=libstdc++')
+    #   Note:   Likely libraries using 'pthread' will fail with:
+    #           CMAKE_HAVE_LIBC_PTHREAD - Failed
+    #           Check if compiler accepts -pthread - no
+    #           Could NOT find Threads
+    #elseif(IS_LIGHTNING_CLANG_DEFAULT_COMPILER AND ROCM_CLANG_TOOLCHAIN_USED)
+    #    set(AMD_WORK_BENCH_CXX_FLAGS "-stdlib=libc++")
+    #    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${AMD_WORK_BENCH_CXX_FLAGS}")
+    #    message(STATUS ">> Using compiler: ${CMAKE_CXX_COMPILER} with option: ${AMD_WORK_BENCH_CXX_FLAGS}")
     endif()
 
     if(NINJA_PATH)
@@ -476,20 +576,21 @@ macro(setup_cmake target_name target_version)
     # Lets give priority to MOLD linker
     set(AMD_WORK_BENCH_LINKER_OPTION "")
     if(LD_MOLD_PATH AND AMD_APP_LINKER_TRY_MOLD)
-        set(CMAKE_LINKER ${LD_MOLD_PATH})
+        set(CMAKE_LINKER ${LD_MOLD_PATH} CACHE STRING "Linker to use: ${LD_MOLD_PATH}")
         set(AMD_WORK_BENCH_LINKER_OPTION "-fuse-ld=mold")
     # Then LLD linker
     elseif(LD_LLD_PATH)
-        set(CMAKE_LINKER ${LD_LLD_PATH})
+        set(CMAKE_LINKER ${LD_LLD_PATH} CACHE STRING "Linker to use: ${LD_LLD_PATH}")
         set(AMD_WORK_BENCH_LINKER_OPTION "-fuse-ld=lld")
     else()
-        message(WARNING ">> LLD linker was not found! Using default linker.")
+        message(WARNING ">> LLD linker was not found! Using default 'Gold' linker.")
     endif()
 
     if(LD_MOLD_PATH OR LD_LLD_PATH AND AMD_WORK_BENCH_LINKER_OPTION)
-        set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${AMD_WORK_BENCH_LINKER_OPTION})
-        set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${AMD_WORK_BENCH_LINKER_OPTION})
-        message(STATUS ">> Using linker: ${CMAKE_LINKER} with option: ${AMD_WORK_BENCH_LINKER_OPTION}")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${AMD_WORK_BENCH_LINKER_OPTION}")
+        #set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${AMD_WORK_BENCH_LINKER_OPTION})
+        #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${AMD_WORK_BENCH_LINKER_OPTION})
+        message(STATUS ">> Using linker: '${CMAKE_LINKER}' with options: '${AMD_WORK_BENCH_LINKER_OPTION}'")
     endif()
       
 
@@ -647,39 +748,102 @@ macro(setup_install_target)
 endmacro()
 
 macro(add_bundled_libraries)
+    #
+    ##  Note: Try to use the local dependencies by default
+    if (NOT DEFINED USE_LOCAL_FMT_LIB)
+        set(USE_LOCAL_FMT_LIB OFF CACHE BOOL "Use local fmt library" FORCE)
+    endif()
+
+    if (NOT DEFINED USE_LOCAL_NLOHMANN_JSON)
+        set(USE_LOCAL_NLOHMANN_JSON OFF CACHE BOOL "Use local json library" FORCE)
+    endif()
+
+    if (NOT DEFINED USE_LOCAL_SPDLOG)
+        set(USE_LOCAL_SPDLOG OFF CACHE BOOL "Use local spdlog library" FORCE)
+    endif()
+
+    if (NOT DEFINED USE_LOCAL_JTHREAD)
+        set(USE_LOCAL_JTHREAD OFF CACHE BOOL "Use local jthread library" FORCE)
+    endif()
+
+    if (NOT DEFINED USE_LOCAL_BOOST)
+        set(USE_LOCAL_BOOST OFF CACHE BOOL "Use local boost library" FORCE)
+    endif()
+
+    if (NOT DEFINED USE_LOCAL_BOOST_STACKTRACE)
+        set(USE_LOCAL_BOOST_STACKTRACE OFF CACHE BOOL "Use local boost stacktrace library" FORCE)
+    endif()
+
+    if (NOT DEFINED USE_LOCAL_CLI11)
+        set(USE_LOCAL_CLI11 OFF CACHE BOOL "Use local CLI11 library" FORCE)
+    endif()
+
+    ##  Note: If we have C++23, use '<stacktrace>', otherwise '<boost::stacktrace>'
+    set(STD_STACKTRACE_CXX_REQUIRED 23)
+
+    ##
     set(EXTERNAL_LIBRARIES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps/external")
     set(3RD_PARTY_LIBRARIES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps/3rd_party")
     set(3RD_PARTY_DEPENDENCY_BASE_DIRECTORY "${CMAKE_BINARY_DIR}/deps/3rd_party")
     set(BUILD_SHARED_LIBS OFF)
 
-    # add_subdirectory(${EXTERNAL_LIBRARIES_DIRECTORY}/DynLibMgmt EXCLUDE_FROM_ALL)
-    # add_subdirectory(${EXTERNAL_LIBRARIES_DIRECTORY}/XYZ EXCLUDE_FROM_ALL)
-    # add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/XYZ EXCLUDE_FROM_ALL)
-    # set(EXTERNAL_XYZ_INCLUDE_DIRECTORIES "${EXTERNAL_LIBRARIES_DIRECTORY}/xyz")
-    # set(3RD_PARTY_XYZ_INCLUDE_DIRECTORIES "${3RD_PARTY_LIBRARIES_DIRECTORY}/xyz")
+    # add_subdirectory(${EXTERNAL_LIBRARIES_DIRECTORY}/dynamic_lib_mgmt EXCLUDE_FROM_ALL)
+    # add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/Catch2 EXCLUDE_FROM_ALL)
     # FindPackageHandleStandardArgs name mismatched
     set(FPHSA_NAME_MISMATCHED ON CACHE BOOL "")
 
-    ##
+    #   Note:   We can check the compiler, and for some libraries we can use the 'stdlibrary'
+    #           if they are already avaiable.
+    #           IS_LIGHTNING_CLANG_DEFAULT_COMPILER and IS_COMPILER_SUPPORTS_CXX{20}_STANDARD are
+    #           is set in the function check_compiler_requirements
+
+    ## (Ubuntu 22.04: 7.81.0)
     find_package(CURL REQUIRED)
 
+    # --- System installed packages don't align with latest versions available in the repo ---
+    #   So, we use the latest version we see available in the Linux Distro repo, and the latest
+    #   version available in the GitHub repo.
+    #
+    #   For example (as of 2025-04-23), Ubuntu 22.04:
+    #       - libfmt-dev: [std::format is part of C++20]
+    #           - pkg version;  9.1.0  : https://github.com/fmtlib/fmt/commit/a33701196adfad74917046096bf5a2aa0ab0bb50
+    #           - git version; 11.1.4  : https://github.com/fmtlib/fmt/commit/123913715afeb8a437e6388b4473fcc4753e1c9a
+    #       - libcli11-dev:
+    #           - pkg version; v2.1.2  : https://github.com/CLIUtils/CLI11/commit/70f8072f9dd2292fd0b9f9e5f58e279f60483ed3
+    #           - git version; v2.5.0  : https://github.com/CLIUtils/CLI11/commit/4160d259d961cd393fd8d67590a8c7d210207348
+    #       - catch2:
+    #           - pkg version; v2.13.8 : https://github.com/catchorg/Catch2/commit/216713a4066b79d9803d374f261ccb30c0fb451f
+    #           - git version; v3.8.10 : https://github.com/catchorg/Catch2/commit/2b60af89e23d28eefc081bc930831ee9d45ea58b
+    #       - nlohmann-json3-dev:
+    #           - pkg version; v3.10.5 : https://github.com/nlohmann/json/commit/4f8fba14066156b73f1189a2b8bd568bde5284c5
+    #           - git version; v3.12.0 : https://github.com/nlohmann/json/commit/55f93686c01528224f448c19128836e7df245f72
+    #       - jthread: [std::jthread is part of C++20]
+    #           - git version; v0.0.0  : https://github.com/josuttis/jthread/commit/0fa8d394254886c555d6faccd0a3de819b7d47f8
+    #       - libspdlog-dev:
+    #           - pkg version; v1.9.2  : https://github.com/gabime/spdlog/commit/eb3220622e73a4889eee355ffa37972b3cac3df5
+    #           - git version; v1.15.2 : https://github.com/gabime/spdlog/commit/48bcf39a661a13be22666ac64db8a7f886f2637e
+    #       - libboost-stacktrace-dev: [std::stacktrace is part of C++23]
+    #           - pkg version; v1.74.0 : https://github.com/boostorg/boost/commit/a7090e8ce184501cfc9e80afa6cafb5bfd3b371c
+    #           - git version; v1.88.0 : https://github.com/boostorg/stacktrace/tree/d6499f26d471158b6e6f65eea7425200f842b547
+    #
+
+    #   Note:   C++20+ we can use the std::format library
+    #if (NOT IS_COMPILER_SUPPORTS_CXX20_STANDARD)
     set(FMT_PACKAGE_NAME "fmt")
     set(FMT_LIBRARY_NAME "fmt")
     set(FMT_REPO_URL "https://github.com/fmtlib/fmt.git")
-    set(FMT_REQUIRED_VERSION "8.1.1")
-    set(FMT_REPO_COMMIT "b6f4ceaed0a0a24ccf575fab6c56dd50ccf6f1a9")
-    set(FMT_SOURCE_DIR "${3RD_PARTY_DEPENDENCY_BASE_DIRECTORY}/${FMT_LIBRARY_NAME}")
+    set(FMT_PKG_MINIMUM_REQUIRED_VERSION "9.1.0")
+    set(FMT_REPO_COMMIT "123913715afeb8a437e6388b4473fcc4753e1c9a")
+    set(FMT_SOURCE_DIR "${3RD_PARTY_LIBRARIES_DIRECTORY}/${FMT_LIBRARY_NAME}")
     if(NOT USE_LOCAL_FMT_LIB)
-        ##declare_fetch_content(${FMT_LIBRARY_NAME} ${FMT_REPO_URL} ${FMT_REPO_COMMIT} ${FMT_SOURCE_DIR})
-        ##FetchContent_MakeAvailable(${FMT_LIBRARY_NAME})
-        ##add_subdirectory(${FMT_SOURCE_DIR} EXCLUDE_FROM_ALL)
-        add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/fmt EXCLUDE_FROM_ALL)
+        verify_dependency_support(${FMT_LIBRARY_NAME} ${FMT_SOURCE_DIR} ${FMT_REPO_COMMIT})
+        add_subdirectory(${FMT_SOURCE_DIR} EXCLUDE_FROM_ALL)
         set(FMT_LIBRARIES fmt::fmt-header-only)
     else()
-        ##check_dependency_system_library(${FMT_PACKAGE_NAME} ${FMT_LIBRARY_NAME} ${FMT_REQUIRED_VERSION})
-        find_package(fmt REQUIRED)
+        find_package(${FMT_PACKAGE_NAME} REQUIRED ${FMT_PKG_MINIMUM_REQUIRED_VERSION})
         set(FMT_LIBRARIES fmt::fmt)
     endif()
+    #endif()
 
     #if(NOT USE_LOCAL_BOOST_STACKTRACE)
     #    add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/stacktrace EXCLUDE_FROM_ALL)
@@ -690,50 +854,58 @@ macro(add_bundled_libraries)
     #endif()
 
     set(JSON_PACKAGE_NAME "nlohmann_json")
-    set(JSON_LIBRARY_NAME "nlohmann_json")
+    set(JSON_LIBRARY_NAME "json")
     set(JSON_REPO_URL "https://github.com/nlohmann/json.git")
-    set(JSON_REQUIRED_VERSION "3.11.0")
-    set(JSON_REPO_COMMIT "499422b303f62568bd010516531b82f1b783d73b")
-    set(JSON_SOURCE_DIR "${3RD_PARTY_DEPENDENCY_BASE_DIRECTORY}/json")
+    set(JSON_PKG_MINIMUM_REQUIRED_VERSION "3.10.5")
+    set(JSON_REPO_COMMIT "55f93686c01528224f448c19128836e7df245f72")
+    set(JSON_SOURCE_DIR "${3RD_PARTY_LIBRARIES_DIRECTORY}/${JSON_LIBRARY_NAME}")
     if(NOT USE_LOCAL_NLOHMANN_JSON)
-        ##declare_fetch_content(${JSON_LIBRARY_NAME} ${JSON_REPO_URL} ${JSON_REPO_COMMIT} ${JSON_SOURCE_DIR})
-        ##FetchContent_MakeAvailable(${JSON_LIBRARY_NAME})
-        ##add_subdirectory(${JSON_SOURCE_DIR} EXCLUDE_FROM_ALL)
-        add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/json EXCLUDE_FROM_ALL)
-        set(NLOHMANN_JSON_LIBRARIES nlohmann_json)
+        verify_dependency_support(${JSON_LIBRARY_NAME} ${JSON_SOURCE_DIR} ${JSON_REPO_COMMIT})
+        if (${JSON_LIBRARY_NAME}_MODULE_ADDED)
+            add_subdirectory(${JSON_SOURCE_DIR} EXCLUDE_FROM_ALL)
+            set(NLOHMANN_JSON_LIBRARIES nlohmann_json)
+        endif()
     else()
-        ##check_dependency_system_library(${JSON_PACKAGE_NAME} ${JSON_LIBRARY_NAME} ${JSON_REQUIRED_VERSION})
-        find_package(nlohmann_json 3.11.0 REQUIRED)
+        find_package(${JSON_PACKAGE_NAME} ${JSON_PKG_MINIMUM_REQUIRED_VERSION} REQUIRED)
         set(NLOHMANN_JSON_LIBRARIES nlohmann_json::nlohmann_json)
     endif()
 
+    #if(IS_COMPILER_SUPPORTS_CXX20_STANDARD)
+    #    set(SPDLOG_USE_STD_FORMAT ON CACHE BOOL "Use std::format" FORCE)
+    #endif()
     set(SPDLOG_PACKAGE_NAME "spdlog")
     set(SPDLOG_LIBRARY_NAME "spdlog")
     set(SPDLOG_REPO_URL "https://github.com/gabime/spdlog.git")
-    set(SPDLOG_REQUIRED_VERSION "1.14.0")
-    set(SPDLOG_REPO_COMMIT "238c9ffa5d1a14226eeabe10c9b63ffff3ed8b8e")
-    set(SPDLOG_SOURCE_DIR "${3RD_PARTY_DEPENDENCY_BASE_DIRECTORY}/json")
+    set(SPDLOG_PKG_MINIMUM_REQUIRED_VERSION "1.9.2")
+    set(SPDLOG_REPO_COMMIT "48bcf39a661a13be22666ac64db8a7f886f2637e")
+    set(SPDLOG_SOURCE_DIR "${3RD_PARTY_LIBRARIES_DIRECTORY}/${SPDLOG_LIBRARY_NAME}")
     if(NOT USE_LOCAL_SPDLOG)
-        ##declare_fetch_content(${SPDLOG_LIBRARY_NAME} ${SPDLOG_REPO_URL} ${SPDLOG_REPO_COMMIT} ${SPDLOG_SOURCE_DIR})
-        ##FetchContent_MakeAvailable(${SPDLOG_LIBRARY_NAME})
-        ##add_subdirectory(${SPDLOG_SOURCE_DIR} EXCLUDE_FROM_ALL)
-        add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/spdlog EXCLUDE_FROM_ALL)
+        verify_dependency_support(${SPDLOG_LIBRARY_NAME} ${SPDLOG_SOURCE_DIR} ${SPDLOG_REPO_COMMIT})
+        add_subdirectory(${SPDLOG_SOURCE_DIR} EXCLUDE_FROM_ALL)
         set(SPDLOG_LIBRARIES spdlog::spdlog_header_only)
     else()
-        ##check_dependency_system_library(${SPDLOG_PACKAGE_NAME} ${SPDLOG_LIBRARY_NAME} ${SPDLOG_REQUIRED_VERSION})
-        find_package(spdlog REQUIRED)
+        find_package(${SPDLOG_PACKAGE_NAME} REQUIRED ${SPDLOG_PKG_MINIMUM_REQUIRED_VERSION})
         set(SPDLOG_LIBRARIES spdlog::spdlog)
     endif()
 
-    if(NOT USE_LOCAL_JTHREAD)
-        add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/jthread EXCLUDE_FROM_ALL)
-        set(JTHREAD_LIBRARIES jthread)
-    else()
-        find_path(JOSUTTIS_JTHREAD_INCLUDE_DIRS "condition_variable_any2.hpp")
-        include_directories(${JOSUTTIS_JTHREAD_INCLUDE_DIRS})
-        add_library(jthread INTERFACE)
-        target_include_directories(jthread INTERFACE ${JOSUTTIS_JTHREAD_INCLUDE_DIRS})
-        set(JTHREAD_LIBRARIES jthread)
+    #   Note:   C++20+ we can use the std::jthread library
+    if (NOT IS_COMPILER_SUPPORTS_CXX23_STANDARD OR NOT IS_COMPILER_SUPPORTS_CXX20_STANDARD)
+        set(JTHREAD_LIBRARY_NAME "jthread")
+        set(JTREAD_REPO_URL "https://github.com/josuttis/jthread.git")
+        set(JTHREAD_PKG_MINIMUM_REQUIRED_VERSION "0.0.0")
+        set(JTHREAD_REPO_COMMIT "0fa8d394254886c555d6faccd0a3de819b7d47f8")
+        set(JTHREAD_SOURCE_DIR "${3RD_PARTY_LIBRARIES_DIRECTORY}/${JTHREAD_LIBRARY_NAME}")
+        if(NOT USE_LOCAL_JTHREAD)
+            verify_dependency_support(${JTHREAD_LIBRARY_NAME} ${JTHREAD_SOURCE_DIR} ${JTHREAD_REPO_COMMIT})
+            add_subdirectory(${JTHREAD_SOURCE_DIR} EXCLUDE_FROM_ALL)
+            set(JTHREAD_LIBRARIES jthread)
+        else()
+            find_path(JOSUTTIS_JTHREAD_INCLUDE_DIRS "condition_variable_any2.hpp")
+            include_directories(${JOSUTTIS_JTHREAD_INCLUDE_DIRS})
+            add_library(jthread INTERFACE)
+            target_include_directories(jthread INTERFACE ${JOSUTTIS_JTHREAD_INCLUDE_DIRS})
+            set(JTHREAD_LIBRARIES jthread)
+        endif()
     endif()
 
     # Note: We will not use the boost.parse_args library for now.
@@ -766,25 +938,22 @@ macro(add_bundled_libraries)
         #       If/in case we set CPP Standard to 23, but the compiler won't support it, 
         #       we will try to use the '<boost::stacktrace>' header.
         set(STACKTRACE_BOOST_TRY_OPTIONAL TRUE)
-        if(CMAKE_CXX_STANDARD GREATER_EQUAL 23)
-            message(STATUS ">> C++23 is required to use the '<stacktrace>' header ...")
-            has_minimum_compiler_version_for_standard(CMAKE_CXX_STANDARD CMAKE_CXX_COMPILER_ID CMAKE_CXX_COMPILER_VERSION HAS_MINIMUM_COMPILER_VERSION)
-            check_default_compiler_requirements(WAS_TRY_CLANG_DEFAULT_COMPILER)
-            ## We don't need to link the 'stdc++_libbacktrace' library. It is already in libstdc++ for C++23 and later.
-            if(WAS_TRY_CLANG_DEFAULT_COMPILER)
-                message(STATUS ">> COMPILER_TRY_CLANG=ON: C++ 23 Minimum requirements met. ...")
-            elseif(HAS_MINIMUM_COMPILER_VERSION)
-                message(WARNING ">> C++23 minimum requirements for 'backtrace' were met. Linking against 'stdc++_libbacktrace' ...")
-                set(BACKTRACE_LIBRARIES ${BACKTRACE_LIBRARIES} "stdc++_libbacktrace")
-            endif()
-            if(WAS_TRY_CLANG_DEFAULT_COMPILER OR HAS_MINIMUM_COMPILER_VERSION)
+        if(CMAKE_CXX_STANDARD GREATER_EQUAL STD_STACKTRACE_CXX_REQUIRED)
+            include(CheckIncludeFileCXX)
+            message(STATUS ">> Checking Header: C++${CMAKE_CXX_STANDARD} '<stacktrace>' is required ...")
+
+            ##  We don't need to link the 'stdc++_libbacktrace' library. It is already in libstdc++ for C++23 and later.
+            ##  set(BACKTRACE_LIBRARIES ${BACKTRACE_LIBRARIES} "stdc++_libbacktrace")
+            check_include_file_cxx(stacktrace HAS_STD_STACKTRACE)
+            if(HAS_STD_STACKTRACE)
+                message(STATUS "  >> C++${CMAKE_CXX_STANDARD} '<stacktrace>' header found. ")
                 set(STACKTRACE_BOOST_TRY_OPTIONAL FALSE)
             endif()
         endif()
 
-        #    If the compiler does not support C++23, we will try to use the '<boost::stacktrace>' header.
+        #   If the compiler does not support C++23, we will try to use the '<boost::stacktrace>' header.
         if(STACKTRACE_BOOST_TRY_OPTIONAL)
-            message(WARNING ">> C++23 requirements were not met. Std: ${CMAKE_CXX_STANDARD}, Compiler: ${CMAKE_CXX_COMPILER_ID}, v: ${CMAKE_CXX_COMPILER_VERSION}")
+            message(WARNING ">> C++${STD_STACKTRACE_CXX_REQUIRED} '<stacktrace>' requirements were not met. Using '<boost::stacktrace>' ...")
             find_package(Boost QUIET COMPONENTS stacktrace)
             if(Boost_FOUND AND TARGET Boost::stacktrace)
                 message(WARNING ">> Will try the option: '<boost::stacktrace>' header.")
@@ -995,7 +1164,7 @@ macro(setup_compiler_flags target_name)
         endif()
 
         if(CMAKE_SYSTEM_NAME MATCHES "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-            set(AMD_WORK_BENCH_COMMON_FLAGS "${AMD_WORK_BENCH_COMMON_FLAGS} -rdynamic")
+            set(AMD_WORK_BENCH_COMMON_LINKER_FLAGS "${AMD_WORK_BENCH_COMMON_LINKER_FLAGS} -rdynamic")
         endif()
 
         ## -fno-omit-frame-pointer -fno-strict-aliasing -fvisibility=hidden -fvisibility-inlines-hidden
@@ -1049,5 +1218,30 @@ macro(setup_compiler_flags target_name)
     set_target_properties(${target_name} PROPERTIES COMPILE_FLAGS "${AMD_WORK_BENCH_COMMON_FLAGS} ${AMD_WORK_BENCH_C_CXX_FLAGS}")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${AMD_WORK_BENCH_COMMON_FLAGS} ${AMD_WORK_BENCH_C_CXX_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${AMD_WORK_BENCH_COMMON_FLAGS} ${AMD_WORK_BENCH_C_CXX_FLAGS} ${AMD_WORK_BENCH_CXX_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${AMD_WORK_BENCH_COMMON_LINKER_FLAGS}")
 endmacro()
 
+macro(developer_status_message message_mode message)
+    if(AMD_APP_DEBUG_BUILD_INFO OR (DEFINED ENV{AMD_APP_DEBUG_BUILD_INFO} AND ("$ENV{AMD_APP_DEBUG_BUILD_INFO}" STREQUAL "ON")))
+        if(NOT "${message_mode}" MATCHES "^(STATUS|WARNING|ERROR|DEBUG|FATAL_ERROR|DEVEL)$")
+            message(WARNING "[DEVELOPER]: The '${message_mode}' message mode is not supported for message: '${message}' .")
+        else()
+            #   ${message_mode} doesn't work here. CMake interpreter sees it as a string; "STATUS", "WARNING"...
+            if("${message_mode}" STREQUAL "STATUS")
+                message(STATUS "[DEVELOPER]: ${message}")
+            elseif("${message_mode}" STREQUAL "WARNING")
+                message(WARNING "[DEVELOPER]: ${message}")
+            elseif("${message_mode}" STREQUAL "ERROR")
+                message(ERROR "[DEVELOPER]: ${message}")
+            elseif("${message_mode}" STREQUAL "DEBUG")
+                message(DEBUG "[DEVELOPER]: ${message}")
+            elseif("${message_mode}" STREQUAL "FATAL_ERROR")
+                message(FATAL_ERROR "[DEVELOPER]: ${message}")
+            elseif("${message_mode}" STREQUAL "DEVEL")
+                message(STATUS "[DEVELOPER]: ${message}")
+            else()
+                message(WARNING "[DEVELOPER]: ${message}, with invalid message mode: '${message_mode}'")
+            endif()
+        endif()
+    endif()
+endmacro()

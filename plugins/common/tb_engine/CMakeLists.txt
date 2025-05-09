@@ -44,7 +44,7 @@ project(${AMD_PROJECT_NAME}
     HOMEPAGE_URL ${AMD_PROJECT_GITHUB_REPO}
 )
 # C++ standard settings
-set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ Standard in use")
+set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ Standard in use")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ##
