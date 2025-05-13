@@ -33,8 +33,8 @@ set(AMD_PROJECT_GITHUB_REPO         "https://github.com/ROCm/rocm_bandwidth_test
 set(AMD_PROJECT_AUTHOR_DOMAIN       "https://www.amd.com")
 set(AMD_PROJECT_AUTHOR_MAINTAINER   "gilbert.lee@amd.com; daniel.oliveira@amd.com")
 set(AMD_PROJECT_VERSION_MAJOR       "2025")
-set(AMD_PROJECT_VERSION_MINOR       "03")
-set(AMD_PROJECT_VERSION_PATCH       "21")
+set(AMD_PROJECT_VERSION_MINOR       "05")
+set(AMD_PROJECT_VERSION_PATCH       "13")
 set(AMD_PROJECT_VERSION_FULL        "${AMD_PROJECT_VERSION_MAJOR}.${AMD_PROJECT_VERSION_MINOR}.${AMD_PROJECT_VERSION_PATCH}")
 
 project(${AMD_PROJECT_NAME}

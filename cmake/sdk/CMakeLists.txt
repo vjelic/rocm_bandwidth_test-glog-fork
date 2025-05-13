@@ -60,8 +60,8 @@ set(FMT_LIBRARIES fmt::fmt-header-only PARENT_SCOPE)
 set(FMT_LIBRARIES fmt::fmt-header-only)
 
 #add_existing_subdirectory(deps/3rd_party/stacktrace)
-#set(BOOST_STACKTRACE_LIBRARIES Boost::stacktrace PARENT_SCOPE)
-#set(BOOST_STACKTRACE_LIBRARIES Boost::stacktrace)
+#set(BOOST_LIBRARIES Boost::stacktrace_basic PARENT_SCOPE)
+#set(BOOST_LIBRARIES Boost::stacktrace_basic)
 
 add_existing_subdirectory(deps/3rd_party/json)
 set(NLOHMANN_JSON_LIBRARIES nlohmann_json PARENT_SCOPE)

@@ -130,7 +130,7 @@ list(REMOVE_DUPLICATES CMAKE_FIND_ROOT_PATH)
 # Adjust find behavior.
 # 'BOTH' allows searching in CMAKE_FIND_ROOT_PATH (ROCm paths) and then system paths.
 # This is often suitable for ROCm which overlays on a standard system.
-set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER) # Don't look for host programs in ROCM_PATH
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)    # Don't look for host programs in ROCM_PATH
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE BOTH)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)

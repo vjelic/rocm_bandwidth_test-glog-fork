@@ -59,9 +59,6 @@ endif()
 
 
 # Build the target binary
-#set(WORK_BENCH_INCLUDE ${CMAKE_SOURCE_DIR}/deps/work_bench/include)
-#set(WORK_BENCH_DEPENDS_INCLUDE ${CMAKE_SOURCE_DIR}/deps/external/DynLibMgmt/include)
-
 ##add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../deps/external/DynLibMgmt ${CMAKE_CURRENT_BINARY_DIR}/main/cmdline/DynLibMgmt EXCLUDE_FROM_ALL)
 target_include_directories(${AMD_PROJECT_NAME} SYSTEM BEFORE PUBLIC ${WORK_BENCH_INCLUDE})
 target_include_directories(${AMD_PROJECT_NAME} PUBLIC include ${CLI11_LIBRARIES})

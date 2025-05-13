@@ -308,13 +308,13 @@ function(setup_sdk_options)
         install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/json DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
     endif()
 
-    #if(NOT USE_LOCAL_BOOST)
-    #    install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/boost DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
-    #endif()
-
-    if(NOT USE_LOCAL_BOOST_STACKTRACE)
-        install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/stacktrace DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
+    if(NOT USE_LOCAL_BOOST)
+        install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/boost DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
     endif()
+
+    #if(NOT USE_LOCAL_BOOST_STACKTRACE)
+    #    install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/boost/libs/stacktrace DESTINATION "${SDK_INSTALL_PATH}/deps/3rd_party")
+    #endif()
 
     #if(NOT USE_LOCAL_CLI11) 
     #    install(DIRECTORY ${CMAKE_SOURCE_DIR}/deps/3rd_party/CLI11 DESTINATION ${SDK_INSTALL_PATH}/deps/3rd_party)
@@ -393,11 +393,11 @@ function(verify_dependency_support module_name module_path commit_hash)
         set(MODULE_ABSOLUTE_PATH "${CMAKE_SOURCE_DIR}/${module_path}")
     endif()
 
-    message(STATUS ">> Submodule path: [${module_path}] '${MODULE_ABSOLUTE_PATH}' / ${CMAKE_SOURCE_DIR}} ...")
-
+    message(STATUS ">> Submodule path: [${module_path}] '${MODULE_ABSOLUTE_PATH}' ...")
     if(NOT EXISTS "${MODULE_ABSOLUTE_PATH}/.git")
         message(FATAL_ERROR ">> Submodule directory seems invalid; Missing '.git' directory. : '${module_name}' at: '${MODULE_ABSOLUTE_PATH}' ...")
     elseif(NOT EXISTS "${MODULE_ABSOLUTE_PATH}/CMakeLists.txt")
+        message(FATAL_ERROR ">> Submodule directory '${module_name}' found at: '${MODULE_ABSOLUTE_PATH}', without a 'CMakeLists.txt' ...")
         message(FATAL_ERROR ">> Submodule directory '${module_name}' found at: '${MODULE_ABSOLUTE_PATH}', without a 'CMakeLists.txt' ...")
     else()
         message(STATUS ">> Submodule directory '${module_name}' and 'CMakeLists.txt' found at: ${MODULE_ABSOLUTE_PATH}")
@@ -451,7 +451,19 @@ function(verify_dependency_support module_name module_path commit_hash)
                 if(NOT RESULT_GIT_CHECKOUT EQUAL 0)
                     message(FATAL_ERROR ">> Could not 'checkout' the submodule '${module_name}' reference: '${commit_hash}'. Error: '${ERROR_GIT_CHECKOUT}'")
                 else()
+                    ##  Note:   Most repos won't have a submodules, but if they do, we need to update the submodules
+                    ##          so they all match with the parent commit hash
+                    ##  Get the current commit hash in the submodule directory
+                    execute_process(
+                        COMMAND ${CMAKE_GIT_EXECUTABLE} submodule update --force --init --recursive
+                        WORKING_DIRECTORY "${MODULE_ABSOLUTE_PATH}"
+                        RESULT_VARIABLE RESULT_GIT_SUBMODULE_UPDATE
+                        ERROR_VARIABLE ERROR_GIT_SUBMODULE_UPDATE
+                        OUTPUT_QUIET
+                        ERROR_STRIP_TRAILING_WHITESPACE
+                    )
                     message(STATUS ">> Submodule '${module_name}' reference '${commit_hash}' successfully checked out. \n")
+
                     ##  Re-run the script to verify the commit hash, just in case
                     ##  Get the current commit hash in the submodule directory
                     execute_process(
@@ -749,7 +761,8 @@ endmacro()
 
 macro(add_bundled_libraries)
     #
-    ##  Note: Try to use the local dependencies by default
+    ##  Note:   Try to use the local (system) dependencies by default
+    ##          If local (system) is not set, we use the bundled libraries
     if (NOT DEFINED USE_LOCAL_FMT_LIB)
         set(USE_LOCAL_FMT_LIB OFF CACHE BOOL "Use local fmt library" FORCE)
     endif()
@@ -766,12 +779,14 @@ macro(add_bundled_libraries)
         set(USE_LOCAL_JTHREAD OFF CACHE BOOL "Use local jthread library" FORCE)
     endif()
 
+    #   Note:   USE_LOCAL_BOOST goes along with USE_LOCAL_BOOST_STACKTRACE and all USE_LOCAL_BOOST_* options
     if (NOT DEFINED USE_LOCAL_BOOST)
-        set(USE_LOCAL_BOOST OFF CACHE BOOL "Use local boost library" FORCE)
+        set(USE_LOCAL_BOOST OFF CACHE BOOL "Use local Boost library" FORCE)
+        set(USE_LOCAL_BOOST_STACKTRACE OFF CACHE BOOL "Use local Boost::stacktrace library" FORCE)
+        set(USE_LOCAL_BOOST_STACKTRACE_TEST ON CACHE BOOL "Use local Boost::stacktrace library test" FORCE)
     endif()
-
     if (NOT DEFINED USE_LOCAL_BOOST_STACKTRACE)
-        set(USE_LOCAL_BOOST_STACKTRACE OFF CACHE BOOL "Use local boost stacktrace library" FORCE)
+        set(USE_LOCAL_BOOST_STACKTRACE OFF CACHE BOOL "Use local Boost::stacktrace library" FORCE)
     endif()
 
     if (NOT DEFINED USE_LOCAL_CLI11)
@@ -784,7 +799,9 @@ macro(add_bundled_libraries)
     ##
     set(EXTERNAL_LIBRARIES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps/external")
     set(3RD_PARTY_LIBRARIES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps/3rd_party")
-    set(3RD_PARTY_DEPENDENCY_BASE_DIRECTORY "${CMAKE_BINARY_DIR}/deps/3rd_party")
+    set(3RD_PARTY_DEPENDENCY_BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps/3rd_party")
+    set(3RD_PARTY_DEPENDENCY_BOOST_BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps/3rd_party/boost")
+    set(3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/deps/3rd_party/boost/libs")
     set(BUILD_SHARED_LIBS OFF)
 
     # add_subdirectory(${EXTERNAL_LIBRARIES_DIRECTORY}/dynamic_lib_mgmt EXCLUDE_FROM_ALL)
@@ -806,28 +823,33 @@ macro(add_bundled_libraries)
     #
     #   For example (as of 2025-04-23), Ubuntu 22.04:
     #       - libfmt-dev: [std::format is part of C++20]
-    #           - pkg version;  9.1.0  : https://github.com/fmtlib/fmt/commit/a33701196adfad74917046096bf5a2aa0ab0bb50
-    #           - git version; 11.1.4  : https://github.com/fmtlib/fmt/commit/123913715afeb8a437e6388b4473fcc4753e1c9a
+    #           - pkg version;  9.1.0       : https://github.com/fmtlib/fmt/commit/a33701196adfad74917046096bf5a2aa0ab0bb50
+    #           - git version; 11.1.4       : https://github.com/fmtlib/fmt/commit/123913715afeb8a437e6388b4473fcc4753e1c9a
     #       - libcli11-dev:
-    #           - pkg version; v2.1.2  : https://github.com/CLIUtils/CLI11/commit/70f8072f9dd2292fd0b9f9e5f58e279f60483ed3
-    #           - git version; v2.5.0  : https://github.com/CLIUtils/CLI11/commit/4160d259d961cd393fd8d67590a8c7d210207348
+    #           - pkg version; v2.1.2       : https://github.com/CLIUtils/CLI11/commit/70f8072f9dd2292fd0b9f9e5f58e279f60483ed3
+    #           - git version; v2.5.0       : https://github.com/CLIUtils/CLI11/commit/4160d259d961cd393fd8d67590a8c7d210207348
     #       - catch2:
-    #           - pkg version; v2.13.8 : https://github.com/catchorg/Catch2/commit/216713a4066b79d9803d374f261ccb30c0fb451f
-    #           - git version; v3.8.10 : https://github.com/catchorg/Catch2/commit/2b60af89e23d28eefc081bc930831ee9d45ea58b
+    #           - pkg version; v2.13.8      : https://github.com/catchorg/Catch2/commit/216713a4066b79d9803d374f261ccb30c0fb451f
+    #           - git version; v3.8.10      : https://github.com/catchorg/Catch2/commit/2b60af89e23d28eefc081bc930831ee9d45ea58b
     #       - nlohmann-json3-dev:
-    #           - pkg version; v3.10.5 : https://github.com/nlohmann/json/commit/4f8fba14066156b73f1189a2b8bd568bde5284c5
-    #           - git version; v3.12.0 : https://github.com/nlohmann/json/commit/55f93686c01528224f448c19128836e7df245f72
+    #           - pkg version; v3.10.5      : https://github.com/nlohmann/json/commit/4f8fba14066156b73f1189a2b8bd568bde5284c5
+    #           - git version; v3.12.0      : https://github.com/nlohmann/json/commit/55f93686c01528224f448c19128836e7df245f72
     #       - jthread: [std::jthread is part of C++20]
-    #           - git version; v0.0.0  : https://github.com/josuttis/jthread/commit/0fa8d394254886c555d6faccd0a3de819b7d47f8
+    #           - git version; v0.0.0       : https://github.com/josuttis/jthread/commit/0fa8d394254886c555d6faccd0a3de819b7d47f8
     #       - libspdlog-dev:
-    #           - pkg version; v1.9.2  : https://github.com/gabime/spdlog/commit/eb3220622e73a4889eee355ffa37972b3cac3df5
-    #           - git version; v1.15.2 : https://github.com/gabime/spdlog/commit/48bcf39a661a13be22666ac64db8a7f886f2637e
+    #           - pkg version; v1.9.2       : https://github.com/gabime/spdlog/commit/eb3220622e73a4889eee355ffa37972b3cac3df5
+    #           - git version; v1.15.2      : https://github.com/gabime/spdlog/commit/48bcf39a661a13be22666ac64db8a7f886f2637e
+    #
+    #       - libboost-all-dev:
+    #           - pkg version; 1.74.0       : https://github.com/boostorg/boost/commit/a7090e8ce184501cfc9e80afa6cafb5bfd3b371c
+    #           - git version; boost-1.88.0 : https://github.com/boostorg/boost/commit/199ef13d6034c85232431130142159af3adfce22
     #       - libboost-stacktrace-dev: [std::stacktrace is part of C++23]
-    #           - pkg version; v1.74.0 : https://github.com/boostorg/boost/commit/a7090e8ce184501cfc9e80afa6cafb5bfd3b371c
-    #           - git version; v1.88.0 : https://github.com/boostorg/stacktrace/tree/d6499f26d471158b6e6f65eea7425200f842b547
+    #           - pkg version; v1.74.0      : https://github.com/boostorg/boost/commit/a7090e8ce184501cfc9e80afa6cafb5bfd3b371c
+    #           - git version; v1.88.0      : https://github.com/boostorg/stacktrace/tree/d6499f26d471158b6e6f65eea7425200f842b547
     #
 
-    #   Note:   C++20+ we can use the std::format library
+    #   Note:   C++20+ we can use the std::format library.
+    #           As a few other dependencies (such as spdlog) use fmtlib, we will force/use of it for now.
     #if (NOT IS_COMPILER_SUPPORTS_CXX20_STANDARD)
     set(FMT_PACKAGE_NAME "fmt")
     set(FMT_LIBRARY_NAME "fmt")
@@ -844,14 +866,87 @@ macro(add_bundled_libraries)
         set(FMT_LIBRARIES fmt::fmt)
     endif()
     #endif()
-
-    #if(NOT USE_LOCAL_BOOST_STACKTRACE)
-    #    add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/stacktrace EXCLUDE_FROM_ALL)
-    #    set(BOOST_STACKTRACE_LIBRARIES Boost::stacktrace)
-    #else()
-    #    find_package(Boost REQUIRED COMPONENTS stacktrace)
-    #    set(BOOST_STACKTRACE_LIBRARIES Boost::stacktrace)
     #endif()
+
+    #   Note:   C++23+ we can use std::stacktrace for the traces.
+    #           Some older compilers/systems will not allow that. We will force/use boost::stacktrace for now.
+    #           Check for 'Boost'
+    set(BOOST_PACKAGE_NAME "boost")
+    set(BOOST_LIBRARY_NAME "boost")
+    set(BOOST_REPO_URL "https://github.com/boostorg/boost.git")
+    set(BOOST_PKG_MINIMUM_REQUIRED_VERSION "1.74.0")
+    set(BOOST_REPO_VERSION "boost-1.88.0")
+    set(BOOST_REPO_COMMIT "199ef13d6034c85232431130142159af3adfce22")
+    set(BOOST_SOURCE_DIR "${3RD_PARTY_DEPENDENCY_BOOST_BASE_DIRECTORY}")
+    if(NOT USE_LOCAL_BOOST)
+        set(BOOST_ROOT "${3RD_PARTY_DEPENDENCY_BOOST_BASE_DIRECTORY}" CACHE PATH "Boost library root directory")
+        set(Boost_NO_SYSTEM_PATHS TRUE)
+        set(Boost_NO_BOOST_CMAKE TRUE)
+        #   Note:   Boost::stacktrace requires:
+        #           - Boost::Config:
+        #               - https://github.com/boostorg/config
+        #           - Boost::Core:
+        #               - https://github.com/boostorg/core
+        verify_dependency_support(${BOOST_LIBRARY_NAME} ${BOOST_SOURCE_DIR} ${BOOST_REPO_VERSION})
+        if (${BOOST_LIBRARY_NAME}_MODULE_ADDED)
+            ## Check for the additional required Boost modules (used by stacktrace)
+            #   Note:   'Boost::stacktrace' is a 'Boost' project submodule'
+            set(BOOST_STACKTRACE_PACKAGE_NAME "libboost-stacktrace")
+            set(BOOST_STACKTRACE_LIBRARY_NAME "stacktrace")
+            set(BOOST_STACKTRACE_REPO_URL "https://github.com/boostorg/stacktrace.git")
+            set(BOOST_STACKTRACE_PKG_MINIMUM_REQUIRED_VERSION ${BOOST_REPO_VERSION})
+            set(BOOST_STACKTRACE_REPO_COMMIT "d6499f26d471158b6e6f65eea7425200f842b547")
+            set(BOOST_STACKTRACE_SOURCE_DIR "${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/${BOOST_STACKTRACE_LIBRARY_NAME}")
+            if(NOT USE_LOCAL_BOOST_STACKTRACE)
+                # Boost::stacktrace is checked here
+                ## verify_dependency_support(${BOOST_STACKTRACE_LIBRARY_NAME} ${BOOST_STACKTRACE_SOURCE_DIR} ${BOOST_STACKTRACE_REPO_COMMIT})
+                ## if (${BOOST_STACKTRACE_LIBRARY_NAME}_MODULE_ADDED)
+                ## Check for the additional required Boost modules (used by stacktrace)
+                set(BOOST_STACKTRACE_DEPENDENCY_LIST config core assert container_hash predef array static_assert type_traits describe throw_exception mp11 winapi)
+                foreach(module_name ${BOOST_STACKTRACE_DEPENDENCY_LIST})
+                    if(NOT EXISTS "${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/${module_name}")
+                        message(FATAL_ERROR ">> Required dependency: '${module_name}' library was not found at: ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/${module_name}")
+                    endif()
+                endforeach()
+
+                ##  Note:   Add all the additional Boost dependencies for 'stacktrace'
+                ##          We are using the 'EXCLUDE_FROM_ALL' option to avoid building all the libraries
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/config EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/assert EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/static_assert EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/type_traits EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/predef EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/array EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/container_hash EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/core EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/describe EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/throw_exception EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/mp11 EXCLUDE_FROM_ALL)
+                add_subdirectory(${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/winapi EXCLUDE_FROM_ALL)
+                add_subdirectory(${BOOST_STACKTRACE_SOURCE_DIR} EXCLUDE_FROM_ALL)
+
+                set(BOOST_STACKTRACE_INCLUDE_DIRECTORIES ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/config/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/assert/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/static_assert/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/type_traits/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/predef/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/array/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/container_hash/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/core/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/describe/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/throw_exception/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/mp11/include
+                    ${3RD_PARTY_DEPENDENCY_BOOST_LIBS_DIRECTORY}/winapi/include
+                    ${BOOST_STACKTRACE_SOURCE_DIR}/include)
+
+                set(BOOST_STACKTRACE_LIBRARIES Boost::stacktrace_basic)
+                ## endif()
+            endif()
+        endif()
+    else()
+        find_package(${BOOST_PACKAGE_NAME} ${BOOST_PKG_MINIMUM_REQUIRED_VERSION} REQUIRED CONFIG COMPONENTS stacktrace_basic)
+        set(BOOST_STACKTRACE_LIBRARIES Boost::stacktrace_basic)
+    endif()
 
     set(JSON_PACKAGE_NAME "nlohmann_json")
     set(JSON_LIBRARY_NAME "json")
@@ -866,6 +961,7 @@ macro(add_bundled_libraries)
             set(NLOHMANN_JSON_LIBRARIES nlohmann_json)
         endif()
     else()
+        set(Boost_NO_SYSTEM_PATHS TRUE)
         find_package(${JSON_PACKAGE_NAME} ${JSON_PKG_MINIMUM_REQUIRED_VERSION} REQUIRED)
         set(NLOHMANN_JSON_LIBRARIES nlohmann_json::nlohmann_json)
     endif()
@@ -909,13 +1005,13 @@ macro(add_bundled_libraries)
     endif()
 
     # Note: We will not use the boost.parse_args library for now.
-    # if(NOT USE_LOCAL_BOOST)
-    # add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/boost ${CMAKE_CURRENT_BINARY_DIR}/boost EXCLUDE_FROM_ALL)
-    # set(BOOST_LIBRARIES boost::regex)
-    # else()
-    # find_package(boost REQUIRED)
-    # set(BOOST_LIBRARIES boost::regex)
-    # endif()
+    #if(NOT USE_LOCAL_BOOST)
+    #    add_subdirectory(${3RD_PARTY_LIBRARIES_DIRECTORY}/boost ${CMAKE_CURRENT_BINARY_DIR}/boost EXCLUDE_FROM_ALL)
+    #    set(BOOST_LIBRARIES boost::boost)
+    #else()
+    #    find_package(Boost 1.74 REQUIRED COMPONENTS stacktrace_basic)
+    #    set(BOOST_LIBRARIES boost::boost)
+    #endif()
     if(NOT AMD_APP_DISABLE_STACKTRACE)
         find_package(Backtrace)
 
@@ -937,27 +1033,29 @@ macro(add_bundled_libraries)
 
         #       If/in case we set CPP Standard to 23, but the compiler won't support it, 
         #       we will try to use the '<boost::stacktrace>' header.
-        set(STACKTRACE_BOOST_TRY_OPTIONAL TRUE)
-        if(CMAKE_CXX_STANDARD GREATER_EQUAL STD_STACKTRACE_CXX_REQUIRED)
-            include(CheckIncludeFileCXX)
-            message(STATUS ">> Checking Header: C++${CMAKE_CXX_STANDARD} '<stacktrace>' is required ...")
+        if(NOT DEFINED USE_LOCAL_BOOST_STACKTRACE)
+            set(STACKTRACE_BOOST_TRY_OPTIONAL TRUE)
+            if(CMAKE_CXX_STANDARD GREATER_EQUAL STD_STACKTRACE_CXX_REQUIRED)
+                include(CheckIncludeFileCXX)
+                message(STATUS ">> Checking Header: C++${CMAKE_CXX_STANDARD} '<stacktrace>' is required ...")
 
-            ##  We don't need to link the 'stdc++_libbacktrace' library. It is already in libstdc++ for C++23 and later.
-            ##  set(BACKTRACE_LIBRARIES ${BACKTRACE_LIBRARIES} "stdc++_libbacktrace")
-            check_include_file_cxx(stacktrace HAS_STD_STACKTRACE)
-            if(HAS_STD_STACKTRACE)
-                message(STATUS "  >> C++${CMAKE_CXX_STANDARD} '<stacktrace>' header found. ")
-                set(STACKTRACE_BOOST_TRY_OPTIONAL FALSE)
+                ##  We don't need to link the 'stdc++_libbacktrace' library. It is already in libstdc++ for C++23 and later.
+                ##  set(BACKTRACE_LIBRARIES ${BACKTRACE_LIBRARIES} "stdc++_libbacktrace")
+                check_include_file_cxx(stacktrace HAS_STD_STACKTRACE)
+                if(HAS_STD_STACKTRACE)
+                    message(STATUS "  >> C++${CMAKE_CXX_STANDARD} '<stacktrace>' header found. ")
+                    set(STACKTRACE_BOOST_TRY_OPTIONAL FALSE)
+                endif()
             endif()
-        endif()
 
-        #   If the compiler does not support C++23, we will try to use the '<boost::stacktrace>' header.
-        if(STACKTRACE_BOOST_TRY_OPTIONAL)
-            message(WARNING ">> C++${STD_STACKTRACE_CXX_REQUIRED} '<stacktrace>' requirements were not met. Using '<boost::stacktrace>' ...")
-            find_package(Boost QUIET COMPONENTS stacktrace)
-            if(Boost_FOUND AND TARGET Boost::stacktrace)
-                message(WARNING ">> Will try the option: '<boost::stacktrace>' header.")
-                set(BACKTRACE_LIBRARIES ${BACKTRACE_LIBRARIES} "Boost::stacktrace")
+            #   If the compiler does not support C++23, we will try to use the '<boost::stacktrace>' header.
+            if(STACKTRACE_BOOST_TRY_OPTIONAL)
+                message(WARNING ">> C++${STD_STACKTRACE_CXX_REQUIRED} '<stacktrace>' requirements were not met. Using '<boost::stacktrace>' ...")
+                find_package(Boost 1.74 QUIET COMPONENTS stacktrace)
+                if(Boost_FOUND AND TARGET Boost::stacktrace)
+                    message(WARNING ">> Will try the option: '<boost::stacktrace>' header.")
+                    set(BACKTRACE_LIBRARIES ${BACKTRACE_LIBRARIES} "Boost::stacktrace")
+                endif()
             endif()
         endif()
     endif()

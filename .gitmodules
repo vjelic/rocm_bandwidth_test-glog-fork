@@ -26,8 +26,8 @@
         path = deps/3rd_party/Catch2
         url = https://github.com/catchorg/Catch2.git
         branch = v3.7.1
-[submodule "deps/3rd_party/stacktrace"]
-        path = deps/3rd_party/stacktrace
-        url = https://github.com/boostorg/stacktrace.git
-        branch = boost-1.87.0
+[submodule "deps/3rd_party/boost"]
+        path = deps/3rd_party/boost
+        url = https://github.com/boostorg/boost.git
+        branch = boost-1.88.0
 
