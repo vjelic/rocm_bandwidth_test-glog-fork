@@ -40,6 +40,46 @@
 #
 cmake_minimum_required(VERSION 3.20)
 
+
+#
+# --- CMake OS version checkpoint ---
+#
+#   For some distros/versions, the default compiler and std library versions are not
+#   up to the minimum C++20 (or newer). As those cannot be updated and as our compiler
+#   'Lightning/Clang++' is *built without* its 'libc++' component, we are not able to
+#   use some much needed features part of the source code.
+#   Here we check for those distros/versions, so we can skip the build gracefully with
+#   no build failures.
+#
+#   For now, we are checking for:
+#   NAME="Red Hat Enterprise Linux"
+#   VERSION_ID="8.8"
+#   ||
+#   NAME="Debian GNU/Linux"
+#   VERSION_ID="10"
+#
+set(SKIP_BUILD_PROCESS OFF)
+set(OS_RELEASE_FILE "/etc/os-release")
+if(EXISTS ${OS_RELEASE_FILE})
+    file(READ "${OS_RELEASE_FILE}" OS_RELEASE_FILE_INFO)
+    string(REGEX MATCH "NAME=\"?([^\n\"]+)\"?" _ "${OS_RELEASE_FILE_INFO}")
+    set(DISTRO_NAME "${CMAKE_MATCH_1}")
+    string(REGEX MATCH "VERSION_ID=\"?([^\n\"]+)\"?" _ "${OS_RELEASE_FILE_INFO}")
+    set(DISTRO_VERSION_ID "${CMAKE_MATCH_1}")
+
+    message(STATUS ">> Environment Detected: '${DISTRO_NAME}', v'${DISTRO_VERSION_ID}'")
+    if((DISTRO_NAME STREQUAL "Red Hat Enterprise Linux" AND DISTRO_VERSION_ID VERSION_EQUAL "8.8") OR
+       (DISTRO_NAME STREQUAL "Debian GNU/Linux" AND DISTRO_VERSION_ID VERSION_EQUAL "10"))
+        #   CACHE INTERNAL makes sure the SKIP_BUILD_PROCESS variable survives into the main CMake context
+        set(SKIP_BUILD_PROCESS ON CACHE INTERNAL "Skip build process for this OS version")
+        message(WARNING ">> Build not supported: '${DISTRO_NAME}', v'${DISTRO_VERSION_ID}'")
+    endif()
+else()
+    set(SKIP_BUILD_PROCESS ON)
+    message(WARNING ">> Unable to read OS release file: '${OS_RELEASE_FILE}'")
+endif()
+
+
 #
 # --- ROCm Build Path Setup ---
 if(DEFINED ENV{ROCM_INSTALL_PATH})

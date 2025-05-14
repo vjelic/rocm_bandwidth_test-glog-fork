@@ -161,6 +161,15 @@ set(AMD_APP_ROCM_BUILD_BINARY_VERSION_INTERNAL ${AMD_TARGET_VERSION} CACHE STRIN
 message(STATUS "[[ Building... Project: " ${CMAKE_PROJECT_NAME} " v." ${AMD_TARGET_VERSION_TEXT} " / " ${AMD_TARGET_VERSION} " {Build: " ${AMD_PROJECT_BUILD_TYPE} " | ROCm Build/Package Env: " ${AMD_APP_ROCM_BUILD_PACKAGE} "} ]] ...")
 message(STATUS "  >> Project will be packaged with: " '${AMD_PROJECT_VERSION_FULL}' " timestamp ...")
 
+#
+#   Note:   It should be put at the top or before any targets are defined/created.
+#           This is set in rocm_clang_toolchain.cmake, and it is used check if the build process should be skipped.
+if(SKIP_BUILD_PROCESS)
+    message(WARNING ">> Due to toolchain/OS policy, skipping build process ...")
+    return()
+endif()
+
+#
 add_custom_target(${AMD_TARGET_NAME}_all ALL)
 setup_default_build_options()
 check_builtin_plugin_set()
