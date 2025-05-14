@@ -72,6 +72,7 @@ if(EXISTS ${OS_RELEASE_FILE})
        (DISTRO_NAME STREQUAL "Debian GNU/Linux" AND DISTRO_VERSION_ID VERSION_EQUAL "10"))
         #   CACHE INTERNAL makes sure the SKIP_BUILD_PROCESS variable survives into the main CMake context
         set(SKIP_BUILD_PROCESS ON CACHE INTERNAL "Skip build process for this OS version")
+        file(WRITE "${CMAKE_BINARY_DIR}/rbt_skip_build_process.flag" "1")
         message(WARNING ">> Build not supported: '${DISTRO_NAME}', v'${DISTRO_VERSION_ID}'")
     endif()
 else()
