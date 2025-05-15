@@ -164,6 +164,7 @@ message(STATUS "  >> Project will be packaged with: " '${AMD_PROJECT_VERSION_FUL
 #
 #   Note:   It should be put at the top or before any targets are defined/created.
 #           This is set in rocm_clang_toolchain.cmake, and it is used check if the build process should be skipped.
+#           We check it here, but the CI script checks for the flag file to skip the build process.
 if(SKIP_BUILD_PROCESS)
     message(WARNING ">> Due to toolchain/OS policy, skipping build process ...")
     return()

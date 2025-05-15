@@ -58,16 +58,25 @@ cmake_minimum_required(VERSION 3.20)
 #   NAME="Debian GNU/Linux"
 #   VERSION_ID="10"
 #
+#   Note:   CMake regex does not support multiline mode by default. So '^' and '$' only
+#           match the beginning and end of the entire string, not the start and end of
+#           individual lines.
+#           string(REGEX MATCH "NAME=\"?([^\n\"]+)\"?" _ "${OS_RELEASE_FILE_INFO}") will cause
+#           errors when we have:
+#               PRETTY_NAME="Debian GNU/Linux 10 (buster)"
+#               NAME="Debian GNU/Linux"
+#           We will try to fix it with (prepending a newline manually, simulating line-by-line):
+#               string(REGEX MATCH "\nNAME=\"([^\"]+)\"" _name_match "\n${OS_RELEASE_FILE_INFO}")
 set(SKIP_BUILD_PROCESS OFF)
 set(OS_RELEASE_FILE "/etc/os-release")
 if(EXISTS ${OS_RELEASE_FILE})
     file(READ "${OS_RELEASE_FILE}" OS_RELEASE_FILE_INFO)
-    string(REGEX MATCH "NAME=\"?([^\n\"]+)\"?" _ "${OS_RELEASE_FILE_INFO}")
+    string(REGEX MATCH "\nNAME=\"([^\"]+)\"" _name_match "\n${OS_RELEASE_FILE_INFO}")
     set(DISTRO_NAME "${CMAKE_MATCH_1}")
-    string(REGEX MATCH "VERSION_ID=\"?([^\n\"]+)\"?" _ "${OS_RELEASE_FILE_INFO}")
+    string(REGEX MATCH "\nVERSION_ID=\"([^\"]+)\"" _version_match "\n${OS_RELEASE_FILE_INFO}")
     set(DISTRO_VERSION_ID "${CMAKE_MATCH_1}")
 
-    message(STATUS ">> Environment Detected: '${DISTRO_NAME}', v'${DISTRO_VERSION_ID}'")
+    message(STATUS ">> ROCm Clang Toolchain Environment Detected: '${DISTRO_NAME}', v'${DISTRO_VERSION_ID}'")
     if((DISTRO_NAME STREQUAL "Red Hat Enterprise Linux" AND DISTRO_VERSION_ID VERSION_EQUAL "8.8") OR
        (DISTRO_NAME STREQUAL "Debian GNU/Linux" AND DISTRO_VERSION_ID VERSION_EQUAL "10"))
         #   CACHE INTERNAL makes sure the SKIP_BUILD_PROCESS variable survives into the main CMake context
