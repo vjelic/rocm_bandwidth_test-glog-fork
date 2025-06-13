@@ -83,7 +83,7 @@ macro(add_amd_work_bench_plugin)
     set_target_properties(${AMD_WORK_BENCH_PLUGIN_NAME}
         PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${PROJECT_MAIN_OUTPUT_DIRECTORY}/plugins"
-        CXX_STANDARD 23
+        CXX_STANDARD 20
         PREFIX ""
         SUFFIX ${AMD_WORK_BENCH_PLUGIN_SUFFIX}
         POSITION_INDEPENDENT_CODE ON

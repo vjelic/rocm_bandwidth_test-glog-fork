@@ -72,7 +72,12 @@ function(setup_rocm_auto_build_environment is_auto_detect_rocm_build is_rocm_bui
 endfunction()
 
 function(setup_build_version version_num version_text)
-    set(TARGET_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+    if(AMD_APP_ROCM_BUILD_PACKAGE)
+        set(TARGET_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/VERSION_ROCM_PKG")
+    else()
+        set(TARGET_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+    endif()
+
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${TARGET_VERSION_FILE})
     file(READ "${TARGET_VERSION_FILE}" file_version)
     string(STRIP ${file_version} file_version)
@@ -89,7 +94,9 @@ endfunction()
 
 function(setup_project)
     enable_language(CXX C)
-    set(PROJECT_MAIN_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" PARENT_SCOPE)
+    if (NOT PROJECT_MAIN_OUTPUT_DIRECTORY OR PROJECT_MAIN_OUTPUT_DIRECTORY STREQUAL "")
+        set(PROJECT_MAIN_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}" PARENT_SCOPE)
+    endif()
 endfunction()
 
 function(has_minimum_compiler_version_for_standard cpp_standard compiler_id compiler_version result)
@@ -694,15 +701,14 @@ macro(check_os_build_definitions)
         endif()
 
         set(PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST 
-        "./plugins" 
-        "/opt/rocm/lib/${AMD_TARGET_NAME}"
-        "${CMAKE_INSTALL_PREFIX}/lib/${AMD_TARGET_NAME}/plugins"
-        "${CMAKE_INSTALL_PREFIX}/share/${AMD_TARGET_NAME}/plugins"
-    )
-    list(JOIN PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST ":" PLUGIN_BUILTIN_LOOKUP_PATH_ALL_STRING)
-    set(SYSTEM_PLUGIN_BUILTIN_LOOKUP_PATH_ALL "${PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST}")
-    add_compile_definitions(SYSTEM_PLUGIN_BUILTIN_LOOKUP_PATH_ALL="${PLUGIN_BUILTIN_LOOKUP_PATH_ALL_STRING}")
-
+            "./plugins"
+            "/opt/rocm/lib/${AMD_TARGET_NAME}"
+            "${CMAKE_INSTALL_PREFIX}/lib/${AMD_TARGET_NAME}/plugins"
+            "${CMAKE_INSTALL_PREFIX}/share/${AMD_TARGET_NAME}/plugins"
+        )
+        list(JOIN PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST ":" PLUGIN_BUILTIN_LOOKUP_PATH_ALL_STRING)
+        set(SYSTEM_PLUGIN_BUILTIN_LOOKUP_PATH_ALL "${PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST}")
+        add_compile_definitions(SYSTEM_PLUGIN_BUILTIN_LOOKUP_PATH_ALL="${PLUGIN_BUILTIN_LOOKUP_PATH_ALL_STRING}")
 
     else()
         message(FATAL_ERROR ">> System is not supported!")
@@ -1073,7 +1079,7 @@ macro(add_plugin_directories)
             set_target_properties(${PLUGIN_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PROJECT_MAIN_OUTPUT_DIRECTORY}/${PLUGIN_MAIN_DIRECTORY}")
             set_target_properties(${PLUGIN_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_MAIN_OUTPUT_DIRECTORY}/${PLUGIN_MAIN_DIRECTORY}")
 
-            install(TARGETS ${PLUGIN_NAME} LIBRARY DESTINATION ${PLUGIN_INSTALL_PATH})
+            ##install(TARGETS ${PLUGIN_NAME} LIBRARY DESTINATION ${PLUGIN_INSTALL_PATH})
             add_dependencies(${AMD_TARGET_NAME}_all ${PLUGIN_NAME})
         endif()
     endforeach()
@@ -1087,7 +1093,7 @@ macro(setup_distribution_package)
     # file(CREATE_LINK $symlink_name ${CMAKE_CURRENT_BINARY_DIR}/original_file SYMBOLIC)
     # file(CREATE_LINK rbt ${CMAKE_CURRENT_BINARY_DIR}/rocm-bandwidth-test/scripts/rbt.sh SYMBOLIC)
     # #set(CMAKE_INSTALL_BINDIR "bin")
-    install(TARGETS awb_main RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    ##install(TARGETS awb_main RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
     # Get string and replace "_", so from 'rocm_bandwidth_test_2025.03.21_amd64.deb' to 
     # 'rocm-bandwidth-test-2025.03.21_amd64.deb'
@@ -1121,6 +1127,7 @@ macro(setup_distribution_package)
     set(CPACK_GENERATOR "DEB;RPM")
 
     ## Set the package types
+    set(AMD_TARGET_INSTALL_STAGING "${CMAKE_INSTALL_PREFIX}/${AMD_TARGET_NAME}/_staging")
     if(AMD_APP_STANDALONE_BUILD_PACKAGE)
         ## Standalone build package
         set(AMD_TARGET_POST_BUILD_ENV "${CMAKE_BINARY_DIR}/post_build_utils_env.cmake") 
@@ -1133,7 +1140,7 @@ macro(setup_distribution_package)
             set(AMD_TARGET_INSTALL TRUE)
             set(AMD_TARGET_INSTALL_DIRECTORY \"\")
             set(AMD_TARGET_INSTALL_PERMISSIONS \"\")
-            set(AMD_TARGET_INSTALL_STAGING \"${CMAKE_BINARY_DIR}/staging\")
+            set(AMD_TARGET_INSTALL_STAGING \"${AMD_TARGET_INSTALL_STAGING}\")
         ")
         ## Packaging directives (standalone build)
         set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Utility tool for benchmarking device performance")
@@ -1150,7 +1157,7 @@ macro(setup_distribution_package)
             set(AMD_TARGET_INSTALL TRUE)
             set(AMD_TARGET_INSTALL_DIRECTORY \"engineering_build\")
             set(AMD_TARGET_INSTALL_PERMISSIONS \"\")
-            set(AMD_TARGET_INSTALL_STAGING \"${CMAKE_BINARY_DIR}/staging\")
+            set(AMD_TARGET_INSTALL_STAGING \"${AMD_TARGET_INSTALL_STAGING}\")
         ")
     elseif(AMD_APP_ROCM_BUILD_PACKAGE)
         ## ROCm build package
@@ -1164,8 +1171,9 @@ macro(setup_distribution_package)
             set(AMD_TARGET_INSTALL TRUE)
             set(AMD_TARGET_INSTALL_DIRECTORY \"\")
             set(AMD_TARGET_INSTALL_PERMISSIONS \"\")
-            set(AMD_TARGET_INSTALL_STAGING \"${CMAKE_BINARY_DIR}/staging\")
+            set(AMD_TARGET_INSTALL_STAGING \"${AMD_TARGET_INSTALL_STAGING}\")
         ")
+        #### set(AMD_TARGET_INSTALL_STAGING \"${CMAKE_BINARY_DIR}/_staging\")
         ## Package directives (ROCm build)
         ## Make proper version for appending
         ## Default Value is 99999, setting it first
@@ -1173,6 +1181,7 @@ macro(setup_distribution_package)
         if(DEFINED ENV{ROCM_LIBPATCH_VERSION})
             set(ROCM_VERSION_FOR_PACKAGE $ENV{ROCM_LIBPATCH_VERSION})
         endif()
+        set(CPACK_SOURCE_IGNORE_FILES "${AMD_TARGET_INSTALL_STAGING}/;${CPACK_SOURCE_IGNORE_FILES}")
         set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}-${ROCM_VERSION_FOR_PACKAGE}")
         set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ROCm utility tool for benchmarking device performance")
 

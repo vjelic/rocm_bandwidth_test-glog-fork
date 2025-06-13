@@ -246,7 +246,7 @@ if(AMD_APP_STANDALONE_BUILD_PACKAGE OR AMD_APP_ENGINEERING_BUILD_PACKAGE)
 
     # 
     ## This is the bridge between the build stage and the packaging stage
-    set(AMD_TARGET_INSTALL_STAGING_AREA_BASE "${CMAKE_BINARY_DIR}/staging")
+    set(AMD_TARGET_INSTALL_STAGING_AREA_BASE "${CMAKE_BINARY_DIR}/_staging")
     if(AMD_APP_STANDALONE_BUILD_PACKAGE)
         set(AMD_ROCM_STAGING_INSTALL_PATH "/usr/local")
         set(AMD_STANDALONE_STAGING_INSTALL_LIBDIR "lib")
@@ -291,7 +291,8 @@ if(AMD_APP_ROCM_BUILD_PACKAGE AND (NOT AMD_APP_STANDALONE_BUILD_PACKAGE) AND (NO
 
     # 
     ## This is the bridge between the build stage and the packaging stage
-    set(AMD_TARGET_INSTALL_STAGING_AREA_BASE "${CMAKE_BINARY_DIR}/staging")
+    ####set(AMD_TARGET_INSTALL_STAGING_AREA_BASE "${CMAKE_BINARY_DIR}/_staging")
+    set(AMD_TARGET_INSTALL_STAGING_AREA_BASE "${CMAKE_INSTALL_PREFIX}/${AMD_TARGET_NAME}/_staging")
     set(AMD_ROCM_STAGING_INSTALL_PATH "/opt/rocm")
     set(AMD_ROCM_STAGING_INSTALL_LIBDIR "lib")
     set(AMD_ROCM_STAGING_INSTALL_PLUGINSDIR "plugins")            

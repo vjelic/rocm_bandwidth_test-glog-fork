@@ -157,23 +157,35 @@ function(dynamic_install install_flag install_type target_install_base_path comp
     set(LIBAMD_PLUGIN_TB_PATH "${AMD_TARGET_PROJECT_BASE}/plugins/tb/lib")
     set(BINAMD_WORK_BENCH_PATH "${AMD_PROJECT_BUILD_DIRECTORY}")
     set(LIBAMD_PLUGINS_PATH "${AMD_PROJECT_BUILD_DIRECTORY}/plugins")
+    set(LIBAMD_RUN_SCRIPTS_PATH "${AMD_TARGET_PROJECT_BASE}/bin")
     set(LIBAMD_DYNLIB_MGMT_PATTERN "libamd_dynlib_mgmt.so*")
     set(LIBAMD_WORK_BENCH_PATTERN "libamd_work_bench.so*")
     set(LIBAMD_COMMON_TB_ENGINE_PATTERN "libamd_tb_engine.so*")
     set(LIBAMD_PLUGIN_TB_PATTERN "libamd_tb.so*")
     set(BINAMD_WORK_BENCH_PATTERN "rocm_bandwidth_test*")
+    set(BINAMD_WORK_BENCH_PATTERN_SYMLINK "rocm-bandwidth-test*")
+    set(BINAMD_WORK_BENCH_PATTERN_ALL "rocm[_\\-]bandwidth[_\\-]test*")
+    set(BINAMD_RUN_PLUGIN_PATTERN "run_*")
     set(LIBAMD_PLUGINS_PATTERN "*.amdplug")
 
     file(GLOB LIBAMD_DYNLIB_MGMT_FILES "${LIBAMD_DYNLIB_MGMT_PATH}/${LIBAMD_DYNLIB_MGMT_PATTERN}")
     file(GLOB LIBAMD_WORK_BENCH_FILES "${LIBAMD_WORK_BENCH_PATH}/${LIBAMD_WORK_BENCH_PATTERN}")
     file(GLOB LIBAMD_COMMON_TB_ENGINE_FILES "${LIBAMD_COMMON_TB_ENGINE_PATH}/${LIBAMD_COMMON_TB_ENGINE_PATTERN}")
     file(GLOB LIBAMD_PLUGIN_TB_FILES "${LIBAMD_PLUGIN_TB_PATH}/${LIBAMD_PLUGIN_TB_PATTERN}")
-    file(GLOB BINAMD_WORK_BENCH_FILES "${BINAMD_WORK_BENCH_PATH}/${BINAMD_WORK_BENCH_PATTERN}")
+    file(GLOB BINAMD_WORK_BENCH_FILES "${BINAMD_WORK_BENCH_PATH}/${BINAMD_WORK_BENCH_PATTERN}" "${BINAMD_WORK_BENCH_PATH}/${BINAMD_WORK_BENCH_PATTERN_SYMLINK}")
+    file(GLOB BINAMD_RUN_PLUGIN_FILES "${LIBAMD_RUN_SCRIPTS_PATH}/${BINAMD_RUN_PLUGIN_PATTERN}")
     file(GLOB_RECURSE LIBAMD_PLUGINS_FILES "${LIBAMD_PLUGINS_PATH}/${LIBAMD_PLUGINS_PATTERN}")
     if(NOT "${install_flag}" STREQUAL "")
         if (NOT DEFINED AMD_TARGET_INSTALL_STAGING OR AMD_TARGET_INSTALL_STAGING STREQUAL "")
             message(FATAL_ERROR "Invalid 'AMD_TARGET_INSTALL_STAGING' install/package staging!")
         endif()
+        #
+        #   Note:   As we build the staging area, do not use:
+        #               - file(INSTALL/DIRECTORY)
+        #               - install(FILE/DIRECTORY)
+        #           They feed into CPack's packaging logic, and the staging will be added to the package
+        file(MAKE_DIRECTORY "${AMD_TARGET_INSTALL_STAGING}")
+        file(REMOVE_RECURSE "${AMD_TARGET_INSTALL_STAGING}/*")
 
         list(FIND INSTALL_TYPE_LIST ${install_flag} install_flag_index)
         if(${install_flag_index} LESS_EQUAL -1)
@@ -247,10 +259,14 @@ function(dynamic_install install_flag install_type target_install_base_path comp
             foreach(bin_copy_file ${BINAMD_WORK_BENCH_FILES})
                 message(STATUS "  >> Copying '${bin_copy_file}' to ${AMD_TARGET_INSTALL_PATH}")
                 file(COPY ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN)
-                get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
-                ##file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${bin_copy_file_name} SYMBOLIC)
-                file(CREATE_LINK "./${AMD_ENGINEERING_TARGET_INSTALL_BINDIR}/${bin_copy_file_name}" "./${bin_copy_file_name}" SYMBOLIC)
             endforeach()
+
+            set(AMD_TARGET_INSTALL_PATH "${AMD_ENGINEERING_TARGET_INSTALL_PATH}/${AMD_ENGINEERING_TARGET_INSTALL_BINDIR}")
+            foreach(bin_copy_file ${BINAMD_RUN_PLUGIN_FILES})
+                message(STATUS "  >> Copying '${bin_copy_file}' to ${AMD_TARGET_INSTALL_PATH}")
+                file(COPY ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+
 
             # Also creates a bz2 file with the 'engineering_build' directory
             string(TIMESTAMP BUILD_TIMESTAMP "%Y.%m.%d")
@@ -293,38 +309,55 @@ function(dynamic_install install_flag install_type target_install_base_path comp
             set(AMD_TARGET_INSTALL_PATH "${AMD_STANDALONE_TARGET_INSTALL_PATH}/${AMD_STANDALONE_TARGET_INSTALL_LIBDIR}")
             file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
             foreach(copy_file ${LIBAMD_DYNLIB_MGMT_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
             foreach(copy_file ${LIBAMD_WORK_BENCH_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
             foreach(copy_file ${LIBAMD_COMMON_TB_ENGINE_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
             foreach(copy_file ${LIBAMD_PLUGIN_TB_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
             set(AMD_TARGET_INSTALL_PATH "${AMD_STANDALONE_TARGET_INSTALL_PATH}/${AMD_STANDALONE_TARGET_INSTALL_LIBDIR}/${AMD_TARGET_NAME}/${AMD_STANDALONE_TARGET_INSTALL_PLUGINSDIR}")
             file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})            
             foreach(copy_file ${LIBAMD_PLUGINS_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
             set(AMD_TARGET_INSTALL_PATH "${AMD_STANDALONE_TARGET_INSTALL_PATH}/${AMD_STANDALONE_TARGET_INSTALL_BINDIR}")
             file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
             foreach(bin_copy_file ${BINAMD_WORK_BENCH_FILES})
-                file(INSTALL ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE EXECUTABLE FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
                 # Check if binary file has "_" and replace with "-" for a symlink name
-                get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
-                string(FIND "${bin_copy_file_name}" "_" character_index)
-                if(${character_index} GREATER -1)
-                    string(REPLACE "_" "-" symlink_file_name "${bin_copy_file_name}")
-                    file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} SYMBOLIC)
-                endif()                
+                #get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
+                #if(${bin_copy_file_name} STREQUAL ${AMD_TARGET_NAME})
+                #    string(FIND "${bin_copy_file_name}" "_" character_index)
+                #    if(${character_index} GREATER -1)
+                #        string(REPLACE "_" "-" symlink_file_name "${bin_copy_file_name}")
+                #        #file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} SYMBOLIC)
+                #        #execute_process(
+                #        #    COMMAND create_symlink "./${AMD_TARGET_NAME}" "./${symlink_file_name}"
+                #        #    OUTPUT_VARIABLE SYMLINK_OUTPUT
+                #        #    WORKING_DIRECTORY ${AMD_TARGET_INSTALL_PATH}
+                #        #    RESULT_VARIABLE SYMLINK_RESULT
+                #        #)
+                #        #if(NOT SYMLINK_RESULT EQUAL 0)
+                #        #    message(WARNING "Failed to create SYMBOLIC: ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} for: ${AMD_TARGET_NAME}")
+                #        #endif()
+                #    endif()
+                #endif()
+            endforeach()
+
+            set(AMD_TARGET_INSTALL_PATH "${AMD_STANDALONE_TARGET_INSTALL_PATH}/${AMD_STANDALONE_TARGET_INSTALL_BINDIR}")
+            file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
+            foreach(bin_copy_file ${BINAMD_RUN_PLUGIN_FILES})
+                file(COPY ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
         elseif("${install_flag}" STREQUAL "ROCM_BUILD_PACKAGE")
@@ -343,54 +376,44 @@ function(dynamic_install install_flag install_type target_install_base_path comp
             set(AMD_TARGET_INSTALL_PATH "${AMD_ROCM_TARGET_INSTALL_PATH}/${AMD_ROCM_TARGET_INSTALL_LIBDIR}")
             file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
             foreach(copy_file ${LIBAMD_DYNLIB_MGMT_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
             foreach(copy_file ${LIBAMD_WORK_BENCH_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
             foreach(copy_file ${LIBAMD_COMMON_TB_ENGINE_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
             foreach(copy_file ${LIBAMD_PLUGIN_TB_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
             
             set(AMD_TARGET_INSTALL_PATH "${AMD_ROCM_TARGET_INSTALL_PATH}/${AMD_ROCM_TARGET_INSTALL_LIBDIR}/${AMD_TARGET_NAME}/${AMD_ROCM_TARGET_INSTALL_PLUGINSDIR}")
             file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
             foreach(copy_file ${LIBAMD_PLUGINS_FILES})
-                file(INSTALL ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE SHARED_LIBRARY FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+                file(COPY ${copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
             set(AMD_TARGET_INSTALL_PATH "${AMD_ROCM_TARGET_INSTALL_PATH}/${AMD_ROCM_TARGET_INSTALL_BINDIR}")
             file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
             foreach(bin_copy_file ${BINAMD_WORK_BENCH_FILES})
-                file(INSTALL ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} TYPE EXECUTABLE FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
-                # Check if binary file has "_" and replace with "-" for a symlink name
-                #get_filename_component(bin_copy_file_name ${bin_copy_file} NAME)
-                #string(FIND "${bin_copy_file_name}" "_" character_index)
-                #if(${character_index} GREATER -1)
-                #    string(REPLACE "_" "-" symlink_file_name "${bin_copy_file_name}")
-                #    execute_process(
-                #        COMMAND create_symlink "./${bin_copy_file_name}" "${symlink_file_name}"
-                #        OUTPUT_VARIABLE SYMLINK_OUTPUT
-                #        WORKING_DIRECTORY ${AMD_TARGET_INSTALL_PATH}
-                #        RESULT_VARIABLE SYMLINK_RESULT
-                #    )
-                #    if(NOT SYMLINK_RESULT EQUAL 0)
-                #        message(WARNING "Failed to create SYMBOLIC: ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} for: ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name}")
-                #    endif()
-                #    #file(CREATE_LINK ${AMD_TARGET_INSTALL_PATH}/${bin_copy_file_name} ${AMD_TARGET_INSTALL_PATH}/${symlink_file_name} SYMBOLIC)
-                #endif()
+                file(COPY ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
+            endforeach()
+
+            set(AMD_TARGET_INSTALL_PATH "${AMD_ROCM_TARGET_INSTALL_PATH}/${AMD_ROCM_TARGET_INSTALL_BINDIR}")
+            file(MAKE_DIRECTORY ${AMD_TARGET_INSTALL_PATH})
+            foreach(bin_copy_file ${BINAMD_RUN_PLUGIN_FILES})
+                file(COPY ${bin_copy_file} DESTINATION ${AMD_TARGET_INSTALL_PATH} FOLLOW_SYMLINK_CHAIN USE_SOURCE_PERMISSIONS)
             endforeach()
 
         else()
             message(FATAL_ERROR "Invalid type: '${install_flag}' for dynamic_install().")
         endif()
     else()
-        message(STATUS "Skipping installation of ${target_name}")
+        message(STATUS "Skipping installation of ${AMD_TARGET_NAME}")
     endif()
 endfunction()
 
@@ -428,7 +451,7 @@ endfunction()
 ##  set(AMD_TARGET_INSTALL TRUE)
 ##  set(AMD_TARGET_INSTALL_DIRECTORY "")
 ##  set(AMD_TARGET_INSTALL_PERMISSIONS "")
-##  set(AMD_TARGET_INSTALL_STAGING "/src/rocm-bandwidth-test/build/staging")
+##  set(AMD_TARGET_INSTALL_STAGING "/src/rocm-bandwidth-test/build/_staging")
 ##  
 ##  ROCM_BUILD_PACKAGE (automatic):
 ##  set(AMD_TARGET_PROJECT_BASE "/src/rocm-bandwidth-test")
@@ -439,7 +462,7 @@ endfunction()
 ##  set(AMD_TARGET_INSTALL TRUE)
 ##  set(AMD_TARGET_INSTALL_DIRECTORY "")
 ##  set(AMD_TARGET_INSTALL_PERMISSIONS "")
-##  set(AMD_TARGET_INSTALL_STAGING "/src/out/ubuntu-24.04/24.04/build/rocm-bandwidth-test/staging")
+##  set(AMD_TARGET_INSTALL_STAGING "/src/out/ubuntu-24.04/24.04/rocm_bandwidth_test/_staging")
 ###############################################################################
 set(TARGET_INSTALL_BASE_PATH "${AMD_TARGET_INSTALL_PREFIX}")
 if (NOT TARGET_INSTALL_BASE_PATH STREQUAL "" AND NOT AMD_TARGET_INSTALL_DIRECTORY STREQUAL "")
