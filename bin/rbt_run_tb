@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+##
+function main() {
+    echo " PluginName: ROCm Bandwidth Test Plugin Wrapper "
+    all_args="$@"
+    ./rocm_bandwidth_test run tb $all_args
+}
+
+
+##
+main "$@"
+
