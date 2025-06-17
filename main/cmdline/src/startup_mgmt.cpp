@@ -94,6 +94,9 @@ auto get_exiting_tasks() -> std::vector<TaskInfo_t>;
  */
 StartupCommandLine_t::StartupCommandLine_t() : m_startup_cmdline{nullptr}
 {
+    // Initialize the startup command line
+    m_linear_progress = 0.0;
+
     /*
      *  Anything that needs to be done during startup should be done here.
      */
