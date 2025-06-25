@@ -161,7 +161,7 @@ auto DefaultPath_t::read() const -> FSPathList_t
     wb_logger::loginfo(LogLevel::LOGGER_WARN, "Path: {} ", __PRETTY_FUNCTION__);
     auto paths = all();
 
-    //  TODO:   This is temporary for debbugging only
+    //  TODO:   This is temporary for debugging only
     for (const auto& path : paths) {
         wb_logger::loginfo(LogLevel::LOGGER_WARN, "    Paths: {} ", path.string());
     }
@@ -212,7 +212,8 @@ auto PluginPath_t::all() const -> FSPathList_t
      *          Then, after we check every path, and add 'm_plugin_path' directory suffix to the path
      *          if needed.
      */
-    return (append_path(get_plugin_paths(), m_plugin_path));
+    //return (append_path(get_plugin_paths(), m_plugin_path));
+    return (get_plugin_paths());
 }
 
 }    // namespace details

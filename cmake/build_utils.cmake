@@ -52,8 +52,7 @@ function(setup_rocm_auto_build_environment is_auto_detect_rocm_build is_rocm_bui
             message(STATUS "  >> ROCM_INSTALL_PATH is set. ROCm build package enabled and using: '$ENV{ROCM_INSTALL_PATH}'")
             set(ROCM_PATH "$ENV{ROCM_INSTALL_PATH}" CACHE STRING "ROCm install directory")
         else()
-            message(STATUS "  >> ROCM_PATH is not set. ROCm build package will be set to: '${ROCM_DEFAULT_PATH}'")
-            set(ROCM_PATH ${ROCM_DEFAULT_PATH} CACHE STRING "ROCm install directory")
+            message(FATAL_ERROR "  >> ROCM_PATH and/or ROCM_INSTALL_PATH are not set. ROCm cannot proceed with: '${ROCM_DEFAULT_PATH}'")
         endif()
 
         ##list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH} ${ROCM_PATH}/hip)
@@ -149,11 +148,14 @@ function(try_clang_default_compiler_requirements compiler_requirement_result)
 
         if(DEFINED ENV{ROCM_INSTALL_PATH})
             set(ROCM_INSTALL_LLVM_BIN_PATH "$ENV{ROCM_INSTALL_PATH}/lib/llvm/bin/")
+        elseif(DEFINED ENV{ROCM_PATH})
+            set(ROCM_INSTALL_LLVM_BIN_PATH "$ENV{ROCM_PATH}/lib/llvm/bin/")
+        else()
+            set(ROCM_INSTALL_LLVM_BIN_PATH "/opt/rocm/lib/llvm/bin/")
         endif()
-        set(ROCM_LLVM_BIN_PATH  "/opt/rocm/lib/llvm/bin/")
         message(WARNING ">> Trying to setup 'Lightning Clang++' as default compiler (COMPILER_TRY_CLANG=ON)")
         message(STATUS "  >> Minimum version required for setting: 'v${CLANG_COMPILER_MINIMUM_VERSION_REQUIRED}'")
-        find_program(CLANG_COMPILER_CXX NAMES clang++ clang HINTS ${ROCM_INSTALL_LLVM_BIN_PATH} ${ROCM_LLVM_BIN_PATH} ${CMAKE_CXX_COMPILER_PATH} ${CMAKE_CXX_COMPILER})
+        find_program(CLANG_COMPILER_CXX NAMES clang++ clang HINTS ${ROCM_INSTALL_LLVM_BIN_PATH} ${CMAKE_CXX_COMPILER_PATH} ${CMAKE_CXX_COMPILER})
         if(CLANG_COMPILER_CXX)
             execute_process( 
                 COMMAND ${CLANG_COMPILER_CXX} -dumpversion
@@ -700,9 +702,18 @@ macro(check_os_build_definitions)
             add_compile_definitions(SYSTEM_DEFAULT_PLUGIN_INSTALL_PATH="${CMAKE_INSTALL_FULL_LIBDIR}/${AMD_TARGET_NAME}")
         endif()
 
+        set(ROCM_BASE_PATH "")
+        if(DEFINED ENV{ROCM_PATH})
+            set(ROCM_BASE_PATH "$ENV{ROCM_PATH}")
+        elseif(DEFINED ENV{ROCM_INSTALL_PATH})
+            set(ROCM_BASE_PATH "$ENV{ROCM_INSTALL_PATH}")
+        endif()
+        set(ROCM_BASE_PLUGIN_LOOKUP_PATH "${ROCM_BASE_PATH}/lib/${AMD_TARGET_NAME}/plugins")
+
         set(PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST 
             "./plugins"
-            "/opt/rocm/lib/${AMD_TARGET_NAME}"
+            "${ROCM_BASE_PLUGIN_LOOKUP_PATH}"
+            "/usr/local/lib"
             "${CMAKE_INSTALL_PREFIX}/lib/${AMD_TARGET_NAME}/plugins"
             "${CMAKE_INSTALL_PREFIX}/share/${AMD_TARGET_NAME}/plugins"
         )
@@ -1128,9 +1139,16 @@ macro(setup_distribution_package)
 
     ## Set the package types
     set(AMD_TARGET_INSTALL_STAGING "${CMAKE_INSTALL_PREFIX}/${AMD_TARGET_NAME}/_staging")
+    if(DEFINED ENV{ROCM_PATH})
+        set(ROCM_PATH "$ENV{ROCM_PATH}")
+    elseif(DEFINED ENV{ROCM_INSTALL_PATH})
+        set(ROCM_PATH "$ENV{ROCM_INSTALL_PATH}")
+    endif()
+
     if(AMD_APP_STANDALONE_BUILD_PACKAGE)
         ## Standalone build package
         set(AMD_TARGET_POST_BUILD_ENV "${CMAKE_BINARY_DIR}/post_build_utils_env.cmake") 
+        set(AMD_TARGET_INSTALL_STAGING "/tmp/${AMD_TARGET_NAME}/_staging")
         file(WRITE ${AMD_TARGET_POST_BUILD_ENV} "" "
             set(AMD_TARGET_PROJECT_BASE \"${CMAKE_CURRENT_SOURCE_DIR}\")
             set(AMD_TARGET_INSTALL_PREFIX \"${CMAKE_INSTALL_PREFIX}\")
@@ -1143,11 +1161,13 @@ macro(setup_distribution_package)
             set(AMD_TARGET_INSTALL_STAGING \"${AMD_TARGET_INSTALL_STAGING}\")
         ")
         ## Packaging directives (standalone build)
+        set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/Packages")
         set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Utility tool for benchmarking device performance")
 
     elseif(AMD_APP_ENGINEERING_BUILD_PACKAGE)
         ## Engineering build package
         set(AMD_TARGET_POST_BUILD_ENV "${CMAKE_BINARY_DIR}/post_build_utils_env.cmake")
+        #set(AMD_TARGET_INSTALL_STAGING "${CMAKE_BINARY_DIR}/${AMD_TARGET_NAME}_staging")
         file(WRITE ${AMD_TARGET_POST_BUILD_ENV} "" "
             set(AMD_TARGET_PROJECT_BASE \"${CMAKE_CURRENT_SOURCE_DIR}\")
             set(AMD_TARGET_INSTALL_PREFIX \"${CMAKE_INSTALL_PREFIX}\")
@@ -1161,18 +1181,20 @@ macro(setup_distribution_package)
         ")
     elseif(AMD_APP_ROCM_BUILD_PACKAGE)
         ## ROCm build package
+        ##set(AMD_TARGET_INSTALL_TYPE \"TARGET\")
         set(AMD_TARGET_POST_BUILD_ENV "${CMAKE_BINARY_DIR}/post_build_utils_env.cmake")
         file(WRITE ${AMD_TARGET_POST_BUILD_ENV} "" "
             set(AMD_TARGET_PROJECT_BASE \"${CMAKE_CURRENT_SOURCE_DIR}\")
             set(AMD_TARGET_INSTALL_PREFIX \"${CMAKE_INSTALL_PREFIX}\")
             set(AMD_TARGET_INSTALL_FLAG_TYPE \"ROCM_BUILD_PACKAGE\")
             set(AMD_TARGET_NAME \"${AMD_TARGET_NAME}\")
-            set(AMD_TARGET_INSTALL_TYPE \"TARGET\")
+            set(AMD_TARGET_INSTALL_TYPE \"${ROCM_PATH}\")
             set(AMD_TARGET_INSTALL TRUE)
             set(AMD_TARGET_INSTALL_DIRECTORY \"\")
             set(AMD_TARGET_INSTALL_PERMISSIONS \"\")
             set(AMD_TARGET_INSTALL_STAGING \"${AMD_TARGET_INSTALL_STAGING}\")
         ")
+
         #### set(AMD_TARGET_INSTALL_STAGING \"${CMAKE_BINARY_DIR}/_staging\")
         ## Package directives (ROCm build)
         ## Make proper version for appending
@@ -1186,7 +1208,8 @@ macro(setup_distribution_package)
         set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ROCm utility tool for benchmarking device performance")
 
         ## Debian package specific variables
-        set(CPACK_DEBIAN_PACKAGE_DEPENDS "libstdc++6, hsa-rocr")
+        ##set(CPACK_DEBIAN_PACKAGE_DEPENDS "libstdc++6, hsa-rocr")
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "libstdc++6")
         if (DEFINED ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
             set(CPACK_DEBIAN_PACKAGE_RELEASE $ENV{CPACK_DEBIAN_PACKAGE_RELEASE})
         else()
@@ -1195,7 +1218,7 @@ macro(setup_distribution_package)
 
         #
         ## RPM package specific variables
-        set(CPACK_RPM_PACKAGE_REQUIRES "hsa-rocr")
+        ##set(CPACK_RPM_PACKAGE_REQUIRES "hsa-rocr")
         if(DEFINED CPACK_PACKAGING_INSTALL_PREFIX)
             set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "${CPACK_PACKAGING_INSTALL_PREFIX} ${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}")
         endif()

@@ -165,7 +165,7 @@ function(dynamic_install install_flag install_type target_install_base_path comp
     set(BINAMD_WORK_BENCH_PATTERN "rocm_bandwidth_test*")
     set(BINAMD_WORK_BENCH_PATTERN_SYMLINK "rocm-bandwidth-test*")
     set(BINAMD_WORK_BENCH_PATTERN_ALL "rocm[_\\-]bandwidth[_\\-]test*")
-    set(BINAMD_RUN_PLUGIN_PATTERN "run_*")
+    set(BINAMD_RUN_PLUGIN_PATTERN "rbt_run_*")
     set(LIBAMD_PLUGINS_PATTERN "*.amdplug")
 
     file(GLOB LIBAMD_DYNLIB_MGMT_FILES "${LIBAMD_DYNLIB_MGMT_PATH}/${LIBAMD_DYNLIB_MGMT_PATTERN}")
@@ -361,7 +361,7 @@ function(dynamic_install install_flag install_type target_install_base_path comp
             endforeach()
 
         elseif("${install_flag}" STREQUAL "ROCM_BUILD_PACKAGE")
-            set(AMD_ROCM_TARGET_INSTALL_PATH "${AMD_TARGET_INSTALL_STAGING}/opt/rocm")
+            set(AMD_ROCM_TARGET_INSTALL_PATH "${AMD_TARGET_INSTALL_STAGING}${AMD_TARGET_INSTALL_TYPE}")
             set(AMD_ROCM_TARGET_INSTALL_LIBDIR "lib")
             set(AMD_ROCM_TARGET_INSTALL_PLUGINSDIR "plugins")            
             set(AMD_ROCM_TARGET_INSTALL_INCLUDEDIR "include")

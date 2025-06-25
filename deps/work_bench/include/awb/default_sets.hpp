@@ -435,6 +435,7 @@ static const inline details::PluginPath_t kLIBRARY_PATH(kDEFAULT_LIBRARY_DIRECTO
 
 static const inline std::vector<const details::DefaultPath_t*> kALL_DEFAULT_PATHS = {
     &kCONFIG_PATH, &kDATA_PATH, &kPLUGIN_PATH, &kLIBRARY_PATH};
+//
 // static const inline std::vector<std::reference_wrapper<const DefaultPath_t&>> all_default_paths = {
 //     kCONFIG_PATH, kPLUGIN_PATH, kDATA_PATH};
 //
