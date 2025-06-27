@@ -246,7 +246,7 @@ if(AMD_APP_STANDALONE_BUILD_PACKAGE OR AMD_APP_ENGINEERING_BUILD_PACKAGE)
 
     # 
     ## This is the bridge between the build stage and the packaging stage
-    set(AMD_TARGET_INSTALL_STAGING_AREA_BASE "/tmp/${AMD_TARGET_NAME}/_staging")
+    set(AMD_TARGET_INSTALL_STAGING_AREA_BASE "${CMAKE_BINARY_DIR}/${AMD_TARGET_NAME}_staging")
     if(AMD_APP_STANDALONE_BUILD_PACKAGE)
         set(AMD_ROCM_STAGING_INSTALL_PATH "/usr/local")
         set(AMD_STANDALONE_STAGING_INSTALL_LIBDIR "lib")
@@ -292,13 +292,7 @@ if(AMD_APP_ROCM_BUILD_PACKAGE AND (NOT AMD_APP_STANDALONE_BUILD_PACKAGE) AND (NO
     # 
     ## This is the bridge between the build stage and the packaging stage
     ## Preserve the proper ROCm version path: "/opt/rocm-${rocm_version}"
-    if(DEFINED ENV{ROCM_PATH})
-        set(ROCM_PATH "$ENV{ROCM_PATH}")
-    elseif(DEFINED ENV{ROCM_INSTALL_PATH})
-        set(ROCM_PATH "$ENV{ROCM_INSTALL_PATH}")
-    else()
-        message(FATAL_ERROR "  >> ROCM_PATH and/or ROCM_INSTALL_PATH were not set. ROCm install build/packages cannot proceed!")
-    endif()
+    get_rocm_install_path(ROCM_PATH)
 
     set(AMD_TARGET_INSTALL_STAGING_AREA_BASE "${CMAKE_INSTALL_PREFIX}/${AMD_TARGET_NAME}/_staging")
     set(AMD_ROCM_STAGING_INSTALL_PATH "${ROCM_PATH}")

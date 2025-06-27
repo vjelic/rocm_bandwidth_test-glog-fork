@@ -163,7 +163,7 @@ function(dynamic_install install_flag install_type target_install_base_path comp
     set(LIBAMD_COMMON_TB_ENGINE_PATTERN "libamd_tb_engine.so*")
     set(LIBAMD_PLUGIN_TB_PATTERN "libamd_tb.so*")
     set(BINAMD_WORK_BENCH_PATTERN "rocm_bandwidth_test*")
-    set(BINAMD_WORK_BENCH_PATTERN_SYMLINK "rocm-bandwidth-test*")
+    set(BINAMD_WORK_BENCH_PATTERN_SYMLINK "rocm-bandwidth-test")
     set(BINAMD_WORK_BENCH_PATTERN_ALL "rocm[_\\-]bandwidth[_\\-]test*")
     set(BINAMD_RUN_PLUGIN_PATTERN "rbt_run_*")
     set(LIBAMD_PLUGINS_PATTERN "*.amdplug")

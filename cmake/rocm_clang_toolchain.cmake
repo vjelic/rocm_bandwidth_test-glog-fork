@@ -77,7 +77,7 @@ if(EXISTS ${OS_RELEASE_FILE})
     set(DISTRO_VERSION_ID "${CMAKE_MATCH_1}")
 
     message(STATUS ">> ROCm Clang Toolchain Environment Detected: '${DISTRO_NAME}', v'${DISTRO_VERSION_ID}'")
-    if((DISTRO_NAME STREQUAL "Red Hat Enterprise Linux" AND (DISTRO_VERSION_ID VERSION_EQUAL "8.8") OR (DISTRO_VERSION_ID VERSION_EQUAL "10.0")) OR
+    if((DISTRO_NAME STREQUAL "Red Hat Enterprise Linux" AND (DISTRO_VERSION_ID VERSION_EQUAL "10.0")) OR
        (DISTRO_NAME STREQUAL "Debian GNU/Linux" AND (DISTRO_VERSION_ID VERSION_EQUAL "10") OR (DISTRO_VERSION_ID VERSION_EQUAL "11")))
         #   CACHE INTERNAL makes sure the SKIP_BUILD_PROCESS variable survives into the main CMake context
         set(SKIP_BUILD_PROCESS ON CACHE INTERNAL "Skip build process for this OS version")

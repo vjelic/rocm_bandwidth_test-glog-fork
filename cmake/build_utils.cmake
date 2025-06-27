@@ -28,6 +28,38 @@ include(FetchContent)
 
 #
 # Note: All functions definitions here
+function(get_rocm_install_path rocm_install_base_path)
+    if(NOT DEFINED ROCM_INSTALL_PATH_FOR_BUILD)
+        message(STATUS ">> Checking ROCm install path settings...")
+        set(TMP_ROCM_INSTALL_PATH "")
+        if(DEFINED ENV{ROCM_PATH} OR DEFINED ROCM_PATH)
+            if(DEFINED ENV{ROCM_PATH})
+                message(STATUS "  >> Environment variable ROCM_PATH: '$ENV{ROCM_PATH}'")
+                set(TMP_ROCM_INSTALL_PATH "$ENV{ROCM_PATH}")
+            endif()
+            if(DEFINED ROCM_PATH)
+                message(STATUS "  >> CMake variable ROCM_PATH: '${ROCM_PATH}'")
+                set(TMP_ROCM_INSTALL_PATH "${ROCM_PATH}")
+            endif()
+        elseif(DEFINED ENV{ROCM_INSTALL_PATH} OR DEFINED ROCM_INSTALL_PATH)
+            if(DEFINED ENV{ROCM_INSTALL_PATH})
+                message(STATUS "  >> Environment variable ROCM_INSTALL_PATH: '$ENV{ROCM_INSTALL_PATH}'")
+                set(TMP_ROCM_INSTALL_PATH "$ENV{ROCM_PATH}")
+            endif()
+            if(DEFINED ROCM_INSTALL_PATH)
+                message(STATUS "  >> CMake variable ROCM_INSTALL_PATH: '${ROCM_INSTALL_PATH}'")
+            endif()
+        else()
+            set(TMP_ROCM_INSTALL_PATH "/opt/rocm")
+            message(STATUS "  >> Using default ROCm install path: '${TMP_ROCM_INSTALL_PATH}'")
+        endif()
+        set(ROCM_INSTALL_PATH_FOR_BUILD "${TMP_ROCM_INSTALL_PATH}" CACHE STRING "ROCm install directory for build" FORCE)
+        set(ROCM_INSTALL_PATH_FOR_BUILD "${ROCM_INSTALL_PATH_FOR_BUILD}" PARENT_SCOPE)
+    else()
+        set(${rocm_install_base_path} "${ROCM_INSTALL_PATH_FOR_BUILD}" PARENT_SCOPE)
+    endif()
+endfunction()
+
 function(setup_rocm_auto_build_environment is_auto_detect_rocm_build is_rocm_build_package_result)
     message(STATUS ">> ROCm auto build environment checking...")
     if(is_rocm_build_package_result)
@@ -44,18 +76,8 @@ function(setup_rocm_auto_build_environment is_auto_detect_rocm_build is_rocm_bui
     if(${is_auto_detect_rocm_build})
         ## Disable ROCM_WARN_TOOLCHAIN warnings by default
         set(ROCM_WARN_TOOLCHAIN_VAR OFF CACHE BOOL "ROCM_WARN_TOOLCHAIN warnings disabled: 'OFF'")
-        set(ROCM_DEFAULT_PATH "/opt/rocm")
-        if(DEFINED ENV{ROCM_PATH})
-            message(STATUS "  >> ROCM_PATH is set. ROCm build package enabled and using: '$ENV{ROCM_PATH}'")
-            set(ROCM_PATH "$ENV{ROCM_PATH}" CACHE STRING "ROCm install directory")
-        elseif(DEFINED ENV{ROCM_INSTALL_PATH})
-            message(STATUS "  >> ROCM_INSTALL_PATH is set. ROCm build package enabled and using: '$ENV{ROCM_INSTALL_PATH}'")
-            set(ROCM_PATH "$ENV{ROCM_INSTALL_PATH}" CACHE STRING "ROCm install directory")
-        else()
-            message(FATAL_ERROR "  >> ROCM_PATH and/or ROCM_INSTALL_PATH are not set. ROCm cannot proceed with: '${ROCM_DEFAULT_PATH}'")
-        endif()
+        get_rocm_install_path(ROCM_PATH)
 
-        ##list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH} ${ROCM_PATH}/hip)
         ##find_package(HIP QUIET PATHS ${ROCM_PATH})
         find_package(ROCmCMakeBuildTools QUIET PATHS ${ROCM_PATH})
         find_package(ROCM QUIET PATHS ${ROCM_PATH})
@@ -146,13 +168,9 @@ function(try_clang_default_compiler_requirements compiler_requirement_result)
         set(CLANG_COMPILER_REVISION_VERSION_REQUIRED "0")
         set(CLANG_COMPILER_MINIMUM_VERSION_REQUIRED "${CLANG_COMPILER_MAJOR_VERSION_REQUIRED}.${CLANG_COMPILER_MINOR_VERSION_REQUIRED}.${CLANG_COMPILER_REVISION_VERSION_REQUIRED}")
 
-        if(DEFINED ENV{ROCM_INSTALL_PATH})
-            set(ROCM_INSTALL_LLVM_BIN_PATH "$ENV{ROCM_INSTALL_PATH}/lib/llvm/bin/")
-        elseif(DEFINED ENV{ROCM_PATH})
-            set(ROCM_INSTALL_LLVM_BIN_PATH "$ENV{ROCM_PATH}/lib/llvm/bin/")
-        else()
-            set(ROCM_INSTALL_LLVM_BIN_PATH "/opt/rocm/lib/llvm/bin/")
-        endif()
+        get_rocm_install_path(ROCM_PATH)
+        set(ROCM_INSTALL_LLVM_BIN_PATH "${ROCM_PATH}/lib/llvm/bin/")
+        
         message(WARNING ">> Trying to setup 'Lightning Clang++' as default compiler (COMPILER_TRY_CLANG=ON)")
         message(STATUS "  >> Minimum version required for setting: 'v${CLANG_COMPILER_MINIMUM_VERSION_REQUIRED}'")
         find_program(CLANG_COMPILER_CXX NAMES clang++ clang HINTS ${ROCM_INSTALL_LLVM_BIN_PATH} ${CMAKE_CXX_COMPILER_PATH} ${CMAKE_CXX_COMPILER})
@@ -702,14 +720,8 @@ macro(check_os_build_definitions)
             add_compile_definitions(SYSTEM_DEFAULT_PLUGIN_INSTALL_PATH="${CMAKE_INSTALL_FULL_LIBDIR}/${AMD_TARGET_NAME}")
         endif()
 
-        set(ROCM_BASE_PATH "")
-        if(DEFINED ENV{ROCM_PATH})
-            set(ROCM_BASE_PATH "$ENV{ROCM_PATH}")
-        elseif(DEFINED ENV{ROCM_INSTALL_PATH})
-            set(ROCM_BASE_PATH "$ENV{ROCM_INSTALL_PATH}")
-        endif()
+        get_rocm_install_path(ROCM_BASE_PATH)
         set(ROCM_BASE_PLUGIN_LOOKUP_PATH "${ROCM_BASE_PATH}/lib/${AMD_TARGET_NAME}/plugins")
-
         set(PLUGIN_BUILTIN_LOOKUP_PATH_ALL_LIST 
             "./plugins"
             "${ROCM_BASE_PLUGIN_LOOKUP_PATH}"
@@ -1000,15 +1012,15 @@ macro(add_bundled_libraries)
         set(SPDLOG_LIBRARIES spdlog::spdlog)
     endif()
 
-    #   Note:   C++20+ we can use the std::jthread library
-    if (NOT IS_COMPILER_SUPPORTS_CXX23_STANDARD OR NOT IS_COMPILER_SUPPORTS_CXX20_STANDARD)
+    #   Note:   C++20 we can use the std::jthread library
+    if (NOT IS_COMPILER_SUPPORTS_CXX23_STANDARD AND NOT IS_COMPILER_SUPPORTS_CXX20_STANDARD)
         set(JTHREAD_LIBRARY_NAME "jthread")
         set(JTREAD_REPO_URL "https://github.com/josuttis/jthread.git")
         set(JTHREAD_PKG_MINIMUM_REQUIRED_VERSION "0.0.0")
         set(JTHREAD_REPO_COMMIT "0fa8d394254886c555d6faccd0a3de819b7d47f8")
         set(JTHREAD_SOURCE_DIR "${3RD_PARTY_LIBRARIES_DIRECTORY}/${JTHREAD_LIBRARY_NAME}")
         if(NOT USE_LOCAL_JTHREAD)
-            verify_dependency_support(${JTHREAD_LIBRARY_NAME} ${JTHREAD_SOURCE_DIR} ${JTHREAD_REPO_COMMIT})
+            verify_dependency_support(${JTHREAD_LIBRARY_NAME} ${JTHREAD_SOURCE_DIR}/${JTHREAD_LIBRARY_NAME} ${JTHREAD_REPO_COMMIT})
             add_subdirectory(${JTHREAD_SOURCE_DIR} EXCLUDE_FROM_ALL)
             set(JTHREAD_LIBRARIES jthread)
         else()
@@ -1139,16 +1151,12 @@ macro(setup_distribution_package)
 
     ## Set the package types
     set(AMD_TARGET_INSTALL_STAGING "${CMAKE_INSTALL_PREFIX}/${AMD_TARGET_NAME}/_staging")
-    if(DEFINED ENV{ROCM_PATH})
-        set(ROCM_PATH "$ENV{ROCM_PATH}")
-    elseif(DEFINED ENV{ROCM_INSTALL_PATH})
-        set(ROCM_PATH "$ENV{ROCM_INSTALL_PATH}")
-    endif()
+    get_rocm_install_path(ROCM_PATH)
 
     if(AMD_APP_STANDALONE_BUILD_PACKAGE)
         ## Standalone build package
         set(AMD_TARGET_POST_BUILD_ENV "${CMAKE_BINARY_DIR}/post_build_utils_env.cmake") 
-        set(AMD_TARGET_INSTALL_STAGING "/tmp/${AMD_TARGET_NAME}/_staging")
+        set(AMD_TARGET_INSTALL_STAGING "${CMAKE_BINARY_DIR}/${AMD_TARGET_NAME}_staging")
         file(WRITE ${AMD_TARGET_POST_BUILD_ENV} "" "
             set(AMD_TARGET_PROJECT_BASE \"${CMAKE_CURRENT_SOURCE_DIR}\")
             set(AMD_TARGET_INSTALL_PREFIX \"${CMAKE_INSTALL_PREFIX}\")
@@ -1317,9 +1325,9 @@ macro(setup_compiler_flags target_name)
             ##  _FORTIFY_SOURCE=3 has led to significant gains in security mitigation, but it may not be suitable for all
             ##  applications. We need a proper study of performance and code size to understand the magnitude of the impact 
             ##  created by _FORTIFY_SOURCE=3 additional runtime code generation, but the performance, and code size might well 
-            ##  be worth the magnitude of the security benefits.
+            ##  be worth the magnitude of the security benefits.  _FORTIFY_SOURCE requires compiling with optimization (-O).
             ##
-            set(AMD_WORK_BENCH_COMMON_FLAGS "${AMD_WORK_BENCH_COMMON_FLAGS} -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2")
+            set(AMD_WORK_BENCH_COMMON_FLAGS "${AMD_WORK_BENCH_COMMON_FLAGS} -O1 -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2")
 
             ##  Stack canary check for buffer overflow on the stack. 
             ##  Emit extra code to check for buffer overflows, such as stack smashing attacks. This is done by adding a guard 
